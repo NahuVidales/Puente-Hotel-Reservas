@@ -1,0 +1,234 @@
+.admin-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 2rem;
+}
+
+.admin-header h1 {
+  margin-bottom: 0;
+}
+
+/* Filtros */
+.filtros-container {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 1rem;
+  margin-bottom: 2rem;
+}
+
+.filtros-fecha {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.fecha-selector {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.fecha-selector .form-input {
+  width: auto;
+}
+
+.fecha-texto {
+  font-size: 0.875rem;
+  color: var(--color-text-muted);
+}
+
+.filtros-turno {
+  display: flex;
+  gap: 0.5rem;
+}
+
+/* Resumen Grid */
+.resumen-grid {
+  display: grid;
+  grid-template-columns: 2fr 1fr 1fr;
+  gap: 1.5rem;
+  margin-bottom: 1.5rem;
+}
+
+.resumen-card {
+  text-align: center;
+}
+
+.resumen-card h3 {
+  font-size: 1rem;
+  color: var(--color-text-muted);
+  margin-bottom: 1rem;
+}
+
+.resumen-numero {
+  font-size: 3rem;
+  font-weight: 700;
+  color: var(--color-primary);
+  line-height: 1;
+  margin-bottom: 0.5rem;
+}
+
+/* Tabla */
+.cliente-info {
+  display: flex;
+  flex-direction: column;
+}
+
+.cliente-nombre {
+  font-weight: 600;
+}
+
+.cliente-contacto {
+  font-size: 0.8125rem;
+  color: var(--color-text-muted);
+}
+
+.personas-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  background-color: var(--color-primary);
+  color: white;
+  border-radius: 50%;
+  font-weight: 600;
+}
+
+.btn-observaciones {
+  background: none;
+  border: none;
+  font-size: 1.25rem;
+  cursor: pointer;
+  padding: 0.25rem;
+  transition: transform var(--transition-fast);
+}
+
+.btn-observaciones:hover {
+  transform: scale(1.2);
+}
+
+.acciones-grupo {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.empty-state-small {
+  padding: 3rem;
+  text-align: center;
+  color: var(--color-text-muted);
+}
+
+/* Comentarios */
+.comentarios-lista {
+  padding: 1rem;
+}
+
+.comentario-item {
+  padding: 1rem;
+  background-color: var(--color-background);
+  border-radius: var(--radius-md);
+  margin-bottom: 0.75rem;
+}
+
+.comentario-item:last-child {
+  margin-bottom: 0;
+}
+
+.comentario-autor {
+  font-weight: 600;
+  margin-bottom: 0.25rem;
+  font-size: 0.875rem;
+}
+
+.comentario-texto {
+  font-style: italic;
+  color: var(--color-text-light);
+}
+
+/* Admin Nueva Reserva */
+.cliente-selector {
+  position: relative;
+}
+
+.cliente-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  background-color: white;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+  max-height: 200px;
+  overflow-y: auto;
+  z-index: 10;
+}
+
+.cliente-option {
+  padding: 0.75rem 1rem;
+  cursor: pointer;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.cliente-option:hover {
+  background-color: var(--color-background);
+}
+
+.cliente-option:last-child {
+  border-bottom: none;
+}
+
+.cliente-seleccionado {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.75rem 1rem;
+  background-color: var(--color-background);
+  border-radius: var(--radius-md);
+  margin-top: 0.5rem;
+}
+
+/* Responsive */
+@media (max-width: 992px) {
+  .resumen-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 768px) {
+  .admin-header {
+    flex-direction: column;
+    gap: 1rem;
+    text-align: center;
+  }
+
+  .filtros-container {
+    flex-direction: column;
+  }
+
+  .filtros-fecha {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .filtros-turno {
+    width: 100%;
+  }
+
+  .filtros-turno .btn {
+    flex: 1;
+  }
+
+  .table {
+    font-size: 0.875rem;
+  }
+
+  .acciones-grupo {
+    flex-direction: column;
+  }
+}

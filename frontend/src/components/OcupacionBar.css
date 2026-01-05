@@ -1,0 +1,56 @@
+.ocupacion-container {
+  width: 100%;
+}
+
+.ocupacion-bar {
+  height: 10px;
+  background-color: var(--color-border);
+  border-radius: 100px;
+  overflow: hidden;
+  margin-bottom: 0.5rem;
+}
+
+.ocupacion-fill {
+  height: 100%;
+  border-radius: 100px;
+  transition: width var(--transition-normal);
+}
+
+.ocupacion-fill.bajo {
+  background-color: var(--color-success);
+}
+
+.ocupacion-fill.medio {
+  background-color: var(--color-warning);
+}
+
+.ocupacion-fill.alto {
+  background-color: var(--color-error);
+}
+
+.ocupacion-info {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.875rem;
+}
+
+.ocupacion-porcentaje {
+  font-weight: 600;
+}
+
+.ocupacion-porcentaje.bajo {
+  color: var(--color-success);
+}
+
+.ocupacion-porcentaje.medio {
+  color: var(--color-warning);
+}
+
+.ocupacion-porcentaje.alto {
+  color: var(--color-error);
+}
+
+.ocupacion-detalle {
+  color: var(--color-text-muted);
+}

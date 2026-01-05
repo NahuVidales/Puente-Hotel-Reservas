@@ -1,0 +1,317 @@
+.nueva-reserva-container {
+  max-width: 700px;
+  margin: 0 auto;
+}
+
+.nueva-reserva-header {
+  text-align: center;
+  margin-bottom: 2rem;
+}
+
+.nueva-reserva-header h1 {
+  color: var(--color-primary);
+  margin-bottom: 0.5rem;
+}
+
+.nueva-reserva-header p {
+  color: var(--color-text-muted);
+}
+
+/* Indicador de pasos */
+.pasos-indicador {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 2rem;
+}
+
+.paso {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  opacity: 0.5;
+}
+
+.paso.activo {
+  opacity: 1;
+}
+
+.paso.completado .paso-numero {
+  background-color: var(--color-success);
+}
+
+.paso-numero {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background-color: var(--color-border-dark);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+}
+
+.paso.activo .paso-numero {
+  background-color: var(--color-primary);
+}
+
+.paso-texto {
+  font-weight: 500;
+  color: var(--color-text-light);
+}
+
+.paso.activo .paso-texto {
+  color: var(--color-text);
+}
+
+.paso-linea {
+  width: 60px;
+  height: 2px;
+  background-color: var(--color-border);
+  margin: 0 1rem;
+}
+
+/* Card */
+.nueva-reserva-card {
+  padding: 2rem;
+}
+
+.paso-content {
+  animation: fadeIn 0.3s ease;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Grids de selección */
+.dias-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 0.5rem;
+}
+
+.dia-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 0.75rem 0.5rem;
+  border: 2px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background-color: white;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.dia-btn:hover {
+  border-color: var(--color-primary-light);
+  background-color: var(--color-background);
+}
+
+.dia-btn.seleccionado {
+  border-color: var(--color-primary);
+  background-color: var(--color-primary);
+  color: white;
+}
+
+.dia-nombre {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  opacity: 0.7;
+}
+
+.dia-numero {
+  font-size: 1.25rem;
+  font-weight: 600;
+}
+
+.dia-mes {
+  font-size: 0.75rem;
+  opacity: 0.7;
+}
+
+/* Turnos */
+.turnos-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 1rem;
+}
+
+.turno-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 1.5rem;
+  border: 2px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background-color: white;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.turno-btn:hover {
+  border-color: var(--color-primary-light);
+  background-color: var(--color-background);
+}
+
+.turno-btn.seleccionado {
+  border-color: var(--color-primary);
+  background-color: var(--color-primary);
+  color: white;
+}
+
+.turno-icon {
+  font-size: 2rem;
+}
+
+.turno-nombre {
+  font-weight: 600;
+  font-size: 1.125rem;
+}
+
+/* Disponibilidad */
+.disponibilidad-preview,
+.disponibilidad-detalle {
+  margin-top: 1.5rem;
+  padding: 1.5rem;
+  background-color: var(--color-background);
+  border-radius: var(--radius-md);
+}
+
+.disponibilidad-preview h4 {
+  margin-bottom: 1rem;
+  font-size: 1rem;
+}
+
+.disponibilidad-info {
+  margin-top: 0.75rem;
+  margin-bottom: 0;
+  text-align: center;
+  color: var(--color-text-muted);
+}
+
+/* Resumen */
+.resumen-seleccion {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  padding: 1rem 1.5rem;
+  background-color: var(--color-background);
+  border-radius: var(--radius-md);
+  margin-bottom: 1.5rem;
+}
+
+.resumen-seleccion p {
+  margin: 0;
+  flex: 1;
+}
+
+/* Cantidad */
+.cantidad-selector {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  justify-content: center;
+}
+
+.cantidad-btn {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  border: 2px solid var(--color-primary);
+  background-color: white;
+  color: var(--color-primary);
+  font-size: 1.5rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.cantidad-btn:hover {
+  background-color: var(--color-primary);
+  color: white;
+}
+
+.cantidad-valor {
+  font-size: 2rem;
+  font-weight: 700;
+  min-width: 60px;
+  text-align: center;
+  color: var(--color-primary);
+}
+
+/* Zonas */
+.zonas-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1rem;
+}
+
+.zona-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 1.25rem;
+  border: 2px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background-color: white;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.zona-btn:hover {
+  border-color: var(--color-primary-light);
+}
+
+.zona-btn.seleccionado {
+  border-color: var(--color-primary);
+  background-color: var(--color-primary);
+  color: white;
+}
+
+.zona-nombre {
+  font-weight: 600;
+}
+
+.zona-disponible {
+  font-size: 0.75rem;
+  opacity: 0.7;
+}
+
+/* Actions */
+.form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 1rem;
+  margin-top: 2rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--color-border);
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .dias-grid {
+    grid-template-columns: repeat(4, 1fr);
+  }
+
+  .zonas-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .resumen-seleccion {
+    flex-direction: column;
+    text-align: center;
+  }
+
+  .form-actions {
+    flex-direction: column;
+  }
+
+  .form-actions .btn {
+    width: 100%;
+  }
+}

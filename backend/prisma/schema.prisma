@@ -1,0 +1,80 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+// SQLite no soporta enums, usamos Strings
+// Rol: "CLIENTE" | "RESPONSABLE"
+// Turno: "ALMUERZO" | "CENA"
+// Zona: "FRENTE" | "GALERIA" | "SALON"
+// EstadoReserva: "RESERVADA" | "CANCELADA_POR_CLIENTE" | "CANCELADA_POR_RESTAURANTE"
+
+// Modelo de Usuario
+model Usuario {
+  id                 Int       @id @default(autoincrement())
+  nombre             String
+  apellido           String
+  telefono           String
+  email              String    @unique
+  passwordHash       String
+  rol                String    @default("CLIENTE")
+  fechaCreacion      DateTime  @default(now())
+  fechaActualizacion DateTime  @updatedAt
+
+  // Relaciones
+  reservas           Reserva[]
+
+  @@map("usuarios")
+}
+
+// Modelo de Reserva
+model Reserva {
+  id                      Int       @id @default(autoincrement())
+  clienteId               Int
+  fecha                   DateTime  // Solo se usa la fecha (día)
+  turno                   String    // "ALMUERZO" | "CENA"
+  zona                    String    // "FRENTE" | "GALERIA" | "SALON"
+  cantidadPersonas        Int
+  observaciones           String?
+  estado                  String    @default("RESERVADA")
+  fechaCreacion           DateTime  @default(now())
+  fechaUltimaModificacion DateTime  @updatedAt
+
+  // Relaciones
+  cliente                 Usuario   @relation(fields: [clienteId], references: [id])
+  comentarios             ComentarioReserva[]
+
+  @@map("reservas")
+}
+
+// Modelo de Comentario de Reserva
+model ComentarioReserva {
+  id              Int      @id @default(autoincrement())
+  reservaId       Int
+  textoComentario String
+  fechaComentario DateTime @default(now())
+
+  // Relaciones
+  reserva         Reserva  @relation(fields: [reservaId], references: [id])
+
+  @@map("comentarios_reserva")
+}
+
+// Modelo de Parámetros de Capacidad del Restaurante
+model ParametrosCapacidadRestaurante {
+  id                   Int    @id @default(autoincrement())
+  capacidadFrente      Int    @default(30)
+  capacidadGaleria     Int    @default(200)
+  capacidadSalon       Int    @default(500)
+  anticipacionMaximaDias Int  @default(30)
+  // Días de apertura: martes(2) a sábado(6) - se maneja en lógica de negocio
+
+  @@map("parametros_capacidad")
+}
