@@ -2,6 +2,13 @@
 // Martes (2) a Sábado (6)
 export const DIAS_APERTURA = [2, 3, 4, 5, 6];
 
+// Capacidad máxima por zona (personas)
+export const CAPACIDADES_ZONA = {
+  FRENTE: 30,
+  GALERIA: 200,
+  SALON: 500
+} as const;
+
 export const NOMBRES_DIAS: { [key: number]: string } = {
   0: 'Domingo',
   1: 'Lunes',
@@ -11,6 +18,14 @@ export const NOMBRES_DIAS: { [key: number]: string } = {
   5: 'Viernes',
   6: 'Sábado'
 };
+
+// Parsear fecha ISO (YYYY-MM-DD) a Date local sin desfase de zona horaria
+export function parsearFechaISO(fechaStr: string): Date {
+  const [año, mes, día] = fechaStr.split('-').map(Number);
+  const fecha = new Date(año, mes - 1, día);
+  fecha.setHours(0, 0, 0, 0);
+  return fecha;
+}
 
 // Verificar si es un día de apertura válido
 export function esDiaApertura(fecha: Date): boolean {
@@ -118,3 +133,57 @@ export function getRangoTamanoGrupo(cantidad: number): string {
   if (cantidad <= 6) return '5-6';
   return '7+';
 }
+
+// Convertir Date a string ISO local (YYYY-MM-DD) sin desfase de zona horaria
+export function serializarFechaISO(fecha: Date | string): string {
+  let date: Date;
+  
+  if (typeof fecha === 'string') {
+    // Si ya es string, devolverlo como está
+    return fecha;
+  }
+  
+  date = new Date(fecha);
+  date.setHours(0, 0, 0, 0);
+  
+  const año = date.getFullYear();
+  const mes = String(date.getMonth() + 1).padStart(2, '0');
+  const día = String(date.getDate()).padStart(2, '0');
+  
+  return `${año}-${mes}-${día}`;
+}
+
+// Validar capacidad disponible en una zona para fecha + turno
+// Retorna { valido: boolean, disponibles: number, mensaje?: string }
+export function validarCapacidadZona(
+  personasSolicitadas: number,
+  personasYaReservadas: number,
+  zona: string
+): { valido: boolean; disponibles: number; mensaje?: string } {
+  const capacidadMaxima = CAPACIDADES_ZONA[zona as keyof typeof CAPACIDADES_ZONA];
+  
+  if (!capacidadMaxima) {
+    return {
+      valido: false,
+      disponibles: 0,
+      mensaje: `Zona desconocida: ${zona}`
+    };
+  }
+
+  const disponibles = capacidadMaxima - personasYaReservadas;
+
+  if (personasSolicitadas > disponibles) {
+    return {
+      valido: false,
+      disponibles,
+      mensaje: `No hay capacidad suficiente en ${getNombreZona(zona)} para esa cantidad de personas. Lugares disponibles: ${disponibles}.`
+    };
+  }
+
+  return {
+    valido: true,
+    disponibles
+  };
+}
+
+

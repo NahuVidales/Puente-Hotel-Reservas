@@ -2,7 +2,15 @@ import { DIAS_APERTURA, DIAS_SEMANA, Turno, Zona, EstadoReserva } from '../types
 
 // Formatear fecha para mostrar
 export function formatearFecha(fecha: string | Date): string {
-  const date = new Date(fecha);
+  let date: Date;
+  
+  if (typeof fecha === 'string') {
+    // Si es string ISO, parsear sin desfase
+    date = parsearFechaISO(fecha);
+  } else {
+    date = fecha;
+  }
+  
   return date.toLocaleDateString('es-ES', {
     weekday: 'long',
     year: 'numeric',
@@ -13,7 +21,15 @@ export function formatearFecha(fecha: string | Date): string {
 
 // Formatear fecha corta
 export function formatearFechaCorta(fecha: string | Date): string {
-  const date = new Date(fecha);
+  let date: Date;
+  
+  if (typeof fecha === 'string') {
+    // Si es string ISO, parsear sin desfase
+    date = parsearFechaISO(fecha);
+  } else {
+    date = fecha;
+  }
+  
   return date.toLocaleDateString('es-ES', {
     day: '2-digit',
     month: '2-digit',
@@ -21,9 +37,62 @@ export function formatearFechaCorta(fecha: string | Date): string {
   });
 }
 
-// Obtener fecha en formato ISO (YYYY-MM-DD)
+// Obtener fecha en formato ISO (YYYY-MM-DD) - Local sin conversión a UTC
 export function fechaISO(fecha: Date): string {
-  return fecha.toISOString().split('T')[0];
+  const año = fecha.getFullYear();
+  const mes = String(fecha.getMonth() + 1).padStart(2, '0');
+  const día = String(fecha.getDate()).padStart(2, '0');
+  return `${año}-${mes}-${día}`;
+}
+
+// Parsear fecha ISO (YYYY-MM-DD) a Date local
+export function parsearFechaISO(fechaStr: string): Date {
+  const [año, mes, día] = fechaStr.split('-').map(Number);
+  const fecha = new Date(año, mes - 1, día);
+  fecha.setHours(0, 0, 0, 0);
+  return fecha;
+}
+
+// Obtener solo el día del mes de una fecha
+export function obtenerDia(fecha: string | Date): number {
+  let date: Date;
+  
+  if (typeof fecha === 'string') {
+    date = parsearFechaISO(fecha);
+  } else {
+    date = fecha;
+  }
+  
+  return date.getDate();
+}
+
+// Obtener mes y año (ej: ene 2026)
+export function obtenerMesAno(fecha: string | Date): string {
+  let date: Date;
+  
+  if (typeof fecha === 'string') {
+    date = parsearFechaISO(fecha);
+  } else {
+    date = fecha;
+  }
+  
+  return date.toLocaleDateString('es-ES', { month: 'short', year: 'numeric' });
+}
+
+// Formatear timestamp ISO (con fecha y hora) para mostrar solo la fecha
+export function formatearTimestamp(timestamp: string): string {
+  const date = new Date(timestamp);
+  return date.toLocaleDateString('es-ES', {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric'
+  });
+}
+
+// Formatear timestamp ISO (con fecha y hora) para mostrar solo la fecha corta
+export function formatearTimestampCorto(timestamp: string): string {
+  const date = new Date(timestamp);
+  return date.toLocaleDateString('es-ES');
 }
 
 // Verificar si es día de apertura
@@ -108,4 +177,33 @@ export function validarTelefono(telefono: string): boolean {
 export function truncarTexto(texto: string, maxLength: number): string {
   if (texto.length <= maxLength) return texto;
   return texto.substring(0, maxLength) + '...';
+}
+
+// Capacidades máximas por zona (personas)
+export const CAPACIDADES_ZONA = {
+  FRENTE: 30,
+  GALERIA: 200,
+  SALON: 500
+} as const;
+
+// Validar capacidad disponible en una zona
+// Recibe directamente los disponibles ya calculados desde la UI (no recalcula)
+// Retorna { valido: boolean, disponibles: number, mensaje?: string }
+export function validarCapacidadZona(
+  personasSolicitadas: number,
+  disponiblesEnZona: number,
+  zona: Zona
+): { valido: boolean; disponibles: number; mensaje?: string } {
+  if (personasSolicitadas > disponiblesEnZona) {
+    return {
+      valido: false,
+      disponibles: disponiblesEnZona,
+      mensaje: `No hay capacidad suficiente en ${getNombreZona(zona)} para esa cantidad de personas. Lugares disponibles: ${disponiblesEnZona}.`
+    };
+  }
+
+  return {
+    valido: true,
+    disponibles: disponiblesEnZona
+  };
 }

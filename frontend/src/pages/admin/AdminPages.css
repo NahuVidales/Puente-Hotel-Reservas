@@ -232,3 +232,113 @@
     flex-direction: column;
   }
 }
+
+/* Tarjetas Clickeables */
+.resumen-card.clickable {
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.resumen-card.clickable:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.1);
+}
+
+.resumen-card.clickable:active {
+  transform: translateY(-2px);
+}
+
+/* Filtro de Zona */
+.card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+}
+
+.card-header .card-title {
+  margin: 0;
+}
+
+.filtro-zona {
+  min-width: 150px;
+}
+
+.filtro-zona select {
+  width: 100%;
+}
+
+/* Filas de tabla clickeables */
+.table tbody tr.clickable-row {
+  transition: all 0.2s ease;
+}
+
+.table tbody tr.clickable-row:hover {
+  background-color: #f0f8ff;
+  box-shadow: inset 0 0 8px rgba(25, 118, 210, 0.1);
+}
+
+.table tbody tr.clickable-row:active {
+  background-color: #e3f2fd;
+}
+
+/* Wrapper para tarjeta + botón de edición */
+.empleado-card-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.empleado-card-wrapper .empleado-card {
+  flex: 1;
+}
+
+.empleado-card-wrapper .btn-small {
+  width: 100%;
+  padding: 0.5rem 1rem;
+  font-size: 0.875rem;
+}
+
+/* Contenedor del formulario de edición */
+.edit-form-container {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+/* Lista de errores */
+.errores-lista {
+  background-color: #ffebee;
+  border-left: 4px solid #f44336;
+  padding: 1rem;
+  border-radius: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.error-item {
+  margin: 0;
+  color: #c62828;
+  font-size: 0.9rem;
+}
+
+/* Nota informativa en modal */
+.info-nota {
+  background-color: #e3f2fd;
+  border-left: 4px solid #1976d2;
+  padding: 0.75rem 1rem;
+  border-radius: 4px;
+}
+
+.info-nota p {
+  margin: 0;
+  color: #1565c0;
+  font-size: 0.875rem;
+}
+
+
+
+
+
+

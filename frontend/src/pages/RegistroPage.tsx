@@ -159,7 +159,7 @@ export function RegistroPage() {
                 Email
               </label>
               <input
-                type="email"
+                type="text"
                 id="email"
                 name="email"
                 className={`form-input ${errors.email ? 'error' : ''}`}

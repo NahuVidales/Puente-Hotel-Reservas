@@ -8,7 +8,11 @@ import {
   esReservaFutura,
   validarCantidadPersonas,
   NOMBRES_DIAS,
-  getRangoTamanoGrupo
+  DIAS_APERTURA,
+  getRangoTamanoGrupo,
+  parsearFechaISO,
+  serializarFechaISO,
+  validarCapacidadZona
 } from '../utils/validaciones';
 
 const router = Router();
@@ -16,27 +20,54 @@ const router = Router();
 // Obtener disponibilidad para una fecha y turno
 router.get('/disponibilidad', verificarToken, async (req: AuthRequest, res) => {
   try {
-    const { fecha, turno } = req.query;
+    let { fecha, turno } = req.query;
+
+    console.log('[GET /reservas/disponibilidad] Parámetros query recibidos:', { fecha, turno, tipoFecha: typeof fecha, tipoTurno: typeof turno });
+
+    // Normalizar turno si viene como array
+    if (Array.isArray(turno)) {
+      turno = turno[0];
+    }
+    if (Array.isArray(fecha)) {
+      fecha = fecha[0];
+    }
 
     if (!fecha || !turno) {
+      console.log('[GET /reservas/disponibilidad] Parámetros inválidos:', { fecha, turno });
       return res.status(400).json({ 
         error: 'Se requiere fecha y turno.' 
       });
     }
 
-    const fechaReserva = new Date(fecha as string);
-    const turnoStr = turno as string;
+    // Validar formato de fecha
+    if (typeof fecha !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(fecha)) {
+      console.log('[GET /reservas/disponibilidad] Formato de fecha inválido:', fecha);
+      return res.status(400).json({
+        error: 'Formato de fecha inválido. Use YYYY-MM-DD.'
+      });
+    }
 
-    console.log('[DEBUG] Disponibilidad - Fecha string recibida:', fecha);
-    console.log('[DEBUG] Disponibilidad - Fecha parseada:', fechaReserva.toISOString());
-    console.log('[DEBUG] Disponibilidad - getDay():', fechaReserva.getDay());
-    console.log('[DEBUG] DIAS_APERTURA:', DIAS_APERTURA);
-    console.log('[DEBUG] Turno:', turnoStr);
+    // Validar turno
+    const turnoStr = String(turno).toUpperCase();
+    if (!['ALMUERZO', 'CENA'].includes(turnoStr)) {
+      console.log('[GET /reservas/disponibilidad] Turno inválido:', turno);
+      return res.status(400).json({
+        error: 'Turno inválido. Use ALMUERZO o CENA.'
+      });
+    }
+
+    const fechaReserva = parsearFechaISO(fecha as string);
+
+    console.log('[GET /reservas/disponibilidad] Fecha string recibida:', fecha);
+    console.log('[GET /reservas/disponibilidad] Fecha parseada:', fechaReserva.toISOString());
+    console.log('[GET /reservas/disponibilidad] getDay():', fechaReserva.getDay());
+    console.log('[GET /reservas/disponibilidad] DIAS_APERTURA:', DIAS_APERTURA);
+    console.log('[GET /reservas/disponibilidad] Turno normalizado:', turnoStr);
 
     // Validar día de apertura
     if (!esDiaApertura(fechaReserva)) {
       const diaSemana = fechaReserva.getDay();
-      console.log('[DEBUG] Día de semana rechazado:', diaSemana, NOMBRES_DIAS[diaSemana]);
+      console.log('[GET /reservas/disponibilidad] Día de semana rechazado:', diaSemana, NOMBRES_DIAS[diaSemana]);
       return res.status(400).json({
         error: `El restaurante no abre los ${NOMBRES_DIAS[diaSemana]}. Abrimos de martes a sábado.`
       });
@@ -46,11 +77,13 @@ router.get('/disponibilidad', verificarToken, async (req: AuthRequest, res) => {
     const parametros = await prisma.parametrosCapacidadRestaurante.findFirst();
     
     if (!parametros) {
+      console.log('[GET /reservas/disponibilidad] Parámetros de capacidad no encontrados');
       return res.status(500).json({ error: 'Error de configuración del restaurante.' });
     }
 
     // Validar rango de anticipación
     if (!estaEnRangoAnticipacion(fechaReserva, parametros.anticipacionMaximaDias)) {
+      console.log('[GET /reservas/disponibilidad] Fuera de rango de anticipación');
       return res.status(400).json({
         error: `Solo se permiten reservas con hasta ${parametros.anticipacionMaximaDias} días de anticipación.`
       });
@@ -122,8 +155,12 @@ router.get('/disponibilidad', verificarToken, async (req: AuthRequest, res) => {
       cantidadReservas: reservas.length
     });
   } catch (error) {
-    console.error('Error al obtener disponibilidad:', error);
-    res.status(500).json({ error: 'Error al obtener disponibilidad.' });
+    console.error('[GET /reservas/disponibilidad] Error completo:', error);
+    console.error('[GET /reservas/disponibilidad] Stack:', (error as any).stack);
+    res.status(500).json({ 
+      error: 'Error al obtener disponibilidad.',
+      detalles: (error as any).message
+    });
   }
 });
 
@@ -159,7 +196,7 @@ router.post('/', verificarToken, async (req: AuthRequest, res) => {
       return res.status(400).json({ error: validacionCantidad.mensaje });
     }
 
-    const fechaReserva = new Date(fecha);
+    const fechaReserva = parsearFechaISO(fecha);
     const turnoStr = turno as string;
     const zonaStr = zona as string;
 
@@ -193,50 +230,51 @@ router.post('/', verificarToken, async (req: AuthRequest, res) => {
 
     const capacidadTotal = parametros.capacidadFrente + parametros.capacidadGaleria + parametros.capacidadSalon;
 
-    // Calcular ocupación actual
+    // Calcular ocupación actual por zona
     const fechaInicio = new Date(fechaReserva);
     fechaInicio.setHours(0, 0, 0, 0);
     const fechaFin = new Date(fechaReserva);
     fechaFin.setHours(23, 59, 59, 999);
 
-    console.log('[POST /reservas] Buscando reservas existentes para:', fechaInicio.toISOString(), '-', fechaFin.toISOString(), 'Turno:', turnoStr);
+    console.log('[POST /reservas] Buscando reservas existentes en zona', zonaStr, 'para:', fechaInicio.toISOString(), '-', fechaFin.toISOString(), 'Turno:', turnoStr);
 
-    const reservasExistentes = await prisma.reserva.findMany({
+    // Buscar reservas existentes en la MISMA ZONA para esa fecha y turno
+    const reservasEnZona = await prisma.reserva.findMany({
       where: {
         fecha: {
           gte: fechaInicio,
           lte: fechaFin
         },
         turno: turnoStr,
+        zona: zonaStr,
         estado: 'RESERVADA'
       }
     });
 
-    console.log('[POST /reservas] Reservas encontradas:', reservasExistentes.length);
+    console.log('[POST /reservas] Reservas en zona encontradas:', reservasEnZona.length);
 
-    const personasReservadas = reservasExistentes.reduce((sum, r) => sum + r.cantidadPersonas, 0);
+    const personasYaReservadasEnZona = reservasEnZona.reduce((sum, r) => sum + r.cantidadPersonas, 0);
 
-    console.log('[POST /reservas] Personas ya reservadas:', personasReservadas, 'Capacidad total:', capacidadTotal);
+    console.log('[POST /reservas] Personas ya reservadas en zona', zonaStr, ':', personasYaReservadasEnZona);
 
-    // Verificar si hay capacidad
-    if (personasReservadas + cantidadPersonas > capacidadTotal) {
-      const porcentajeActual = Math.round((personasReservadas / capacidadTotal) * 100);
-      const lugaresDisponibles = capacidadTotal - personasReservadas;
-      
-      console.log('[POST /reservas] Capacidad insuficiente. Disponibles:', lugaresDisponibles);
+    // Validar capacidad de la zona específica
+    const validacionCapacidad = validarCapacidadZona(cantidadPersonas, personasYaReservadasEnZona, zonaStr);
+    
+    if (!validacionCapacidad.valido) {
+      console.log('[POST /reservas] Capacidad insuficiente en zona:', validacionCapacidad.mensaje);
       
       return res.status(400).json({
-        error: 'Capacidad insuficiente',
-        mensaje: `Lo sentimos, no hay suficiente capacidad para ${cantidadPersonas} personas.`,
+        error: validacionCapacidad.mensaje,
         detalles: {
-          lugaresDisponibles,
-          porcentajeOcupacion: porcentajeActual,
-          sugerencia: 'Te sugerimos elegir otro turno o fecha.'
+          zona: zonaStr,
+          personasSolicitadas: cantidadPersonas,
+          personasYaReservadas: personasYaReservadasEnZona,
+          lugaresDisponibles: validacionCapacidad.disponibles
         }
       });
     }
 
-    console.log('[POST /reservas] Creando reserva en BD...');
+    console.log('[POST /reservas] Capacidad validada. Lugares disponibles en zona:', validacionCapacidad.disponibles);
 
     // Crear la reserva
     const nuevaReserva = await prisma.reserva.create({
@@ -264,14 +302,32 @@ router.post('/', verificarToken, async (req: AuthRequest, res) => {
 
     console.log('[POST /reservas] Reserva creada exitosamente. ID:', nuevaReserva.id);
 
-    const nuevoPorcentaje = Math.round(((personasReservadas + cantidadPersonas) / capacidadTotal) * 100);
+    // Calcular ocupación total actualizada (incluyendo la nueva reserva)
+    const todasLasReservas = await prisma.reserva.findMany({
+      where: {
+        fecha: {
+          gte: fechaInicio,
+          lte: fechaFin
+        },
+        turno: turnoStr,
+        estado: 'RESERVADA'
+      }
+    });
+
+    const totalPersonasReservadas = todasLasReservas.reduce((sum, r) => sum + r.cantidadPersonas, 0);
+    const nuevoPorcentaje = Math.round((totalPersonasReservadas / capacidadTotal) * 100);
 
     res.status(201).json({
       mensaje: '¡Reserva creada exitosamente!',
-      reserva: nuevaReserva,
+      reserva: {
+        ...nuevaReserva,
+        fecha: serializarFechaISO(nuevaReserva.fecha),
+        fechaCreacion: serializarFechaISO(nuevaReserva.fechaCreacion),
+        fechaUltimaModificacion: serializarFechaISO(nuevaReserva.fechaUltimaModificacion)
+      },
       ocupacion: {
         porcentajeOcupacion: nuevoPorcentaje,
-        personasReservadas: personasReservadas + cantidadPersonas,
+        personasReservadas: totalPersonasReservadas,
         capacidadTotal
       }
     });
@@ -316,9 +372,12 @@ router.get('/mis-reservas', verificarToken, async (req: AuthRequest, res) => {
 
     console.log('[GET /mis-reservas] Reservas encontradas:', reservas.length);
 
-    // Agregar información de si se puede modificar
+    // Agregar información de si se puede modificar y serializar fechas
     const reservasConInfo = reservas.map(reserva => ({
       ...reserva,
+      fecha: serializarFechaISO(reserva.fecha),
+      fechaCreacion: serializarFechaISO(reserva.fechaCreacion),
+      fechaUltimaModificacion: serializarFechaISO(reserva.fechaUltimaModificacion),
       puedeModificar: esReservaFutura(reserva.fecha) && 
                        faltanMasDe24Horas(reserva.fecha, reserva.turno) &&
                        reserva.estado === 'RESERVADA',
@@ -345,7 +404,7 @@ router.get('/admin/todas', verificarToken, verificarResponsable, async (req: Aut
     let whereClause: any = {};
 
     if (fecha) {
-      const fechaFiltro = new Date(fecha as string);
+      const fechaFiltro = parsearFechaISO(fecha as string);
       const fechaInicio = new Date(fechaFiltro);
       fechaInicio.setHours(0, 0, 0, 0);
       const fechaFin = new Date(fechaFiltro);
@@ -382,7 +441,15 @@ router.get('/admin/todas', verificarToken, verificarResponsable, async (req: Aut
       ]
     });
 
-    res.json({ reservas });
+    // Serializar fechas correctamente
+    const reservasSerializadas = reservas.map(r => ({
+      ...r,
+      fecha: serializarFechaISO(r.fecha),
+      fechaCreacion: serializarFechaISO(r.fechaCreacion),
+      fechaUltimaModificacion: serializarFechaISO(r.fechaUltimaModificacion)
+    }));
+
+    res.json({ reservas: reservasSerializadas });
   } catch (error) {
     console.error('Error al obtener reservas:', error);
     res.status(500).json({ error: 'Error al obtener reservas.' });
@@ -398,7 +465,7 @@ router.get('/admin/planificacion', verificarToken, verificarResponsable, async (
       return res.status(400).json({ error: 'Se requiere fecha y turno.' });
     }
 
-    const fechaFiltro = new Date(fecha as string);
+    const fechaFiltro = parsearFechaISO(fecha as string);
     const fechaInicio = new Date(fechaFiltro);
     fechaInicio.setHours(0, 0, 0, 0);
     const fechaFin = new Date(fechaFiltro);
@@ -449,15 +516,13 @@ router.get('/admin/planificacion', verificarToken, verificarResponsable, async (
       return acc;
     }, {});
 
-    // Agrupar por zona y tamaño
+    // Agrupar por zona y tamaño exacto (sin rangos)
     const porZonaYTamano = reservas.reduce((acc: any, r) => {
-      const rango = getRangoTamanoGrupo(r.cantidadPersonas);
-      const key = `${r.zona}-${rango}`;
+      const key = `${r.zona}-${r.cantidadPersonas}`;
       if (!acc[key]) {
-        acc[key] = { zona: r.zona, tamano: rango, reservas: 0, personas: 0, conObservaciones: 0 };
+        acc[key] = { zona: r.zona, tamano: r.cantidadPersonas.toString(), reservas: 0, personas: r.cantidadPersonas, conObservaciones: 0 };
       }
       acc[key].reservas++;
-      acc[key].personas += r.cantidadPersonas;
       if (r.observaciones) acc[key].conObservaciones++;
       return acc;
     }, {});
@@ -521,6 +586,9 @@ router.get('/:id', verificarToken, async (req: AuthRequest, res) => {
     res.json({
       reserva: {
         ...reserva,
+        fecha: serializarFechaISO(reserva.fecha),
+        fechaCreacion: serializarFechaISO(reserva.fechaCreacion),
+        fechaUltimaModificacion: serializarFechaISO(reserva.fechaUltimaModificacion),
         puedeModificar: esReservaFutura(reserva.fecha) && 
                          faltanMasDe24Horas(reserva.fecha, reserva.turno) &&
                          reserva.estado === 'RESERVADA',
@@ -577,7 +645,7 @@ router.put('/:id', verificarToken, async (req: AuthRequest, res) => {
     const datosActualizacion: any = {};
     
     if (fecha) {
-      const nuevaFecha = new Date(fecha);
+      const nuevaFecha = parsearFechaISO(fecha);
       
       if (!esDiaApertura(nuevaFecha)) {
         const diaSemana = nuevaFecha.getDay();
@@ -607,10 +675,11 @@ router.put('/:id', verificarToken, async (req: AuthRequest, res) => {
     }
     if (observaciones !== undefined) datosActualizacion.observaciones = observaciones;
 
-    // Validar capacidad si cambia la fecha, turno o cantidad
-    if (datosActualizacion.fecha || datosActualizacion.turno || datosActualizacion.cantidadPersonas) {
+    // Validar capacidad si cambia la fecha, turno, zona o cantidad
+    if (datosActualizacion.fecha || datosActualizacion.turno || datosActualizacion.zona || datosActualizacion.cantidadPersonas) {
       const fechaValidar = datosActualizacion.fecha || reservaExistente.fecha;
       const turnoValidar = datosActualizacion.turno || reservaExistente.turno;
+      const zonaValidar = datosActualizacion.zona || reservaExistente.zona;
       const cantidadValidar = datosActualizacion.cantidadPersonas || reservaExistente.cantidadPersonas;
 
       const parametros = await prisma.parametrosCapacidadRestaurante.findFirst();
@@ -618,28 +687,36 @@ router.put('/:id', verificarToken, async (req: AuthRequest, res) => {
         return res.status(500).json({ error: 'Error de configuración.' });
       }
 
-      const capacidadTotal = parametros.capacidadFrente + parametros.capacidadGaleria + parametros.capacidadSalon;
-
       const fechaInicio = new Date(fechaValidar);
       fechaInicio.setHours(0, 0, 0, 0);
       const fechaFin = new Date(fechaValidar);
       fechaFin.setHours(23, 59, 59, 999);
 
-      const otrasReservas = await prisma.reserva.findMany({
+      // Buscar reservas en la MISMA ZONA para esa fecha y turno (excluyendo la actual)
+      const otrasReservasEnZona = await prisma.reserva.findMany({
         where: {
           fecha: { gte: fechaInicio, lte: fechaFin },
           turno: turnoValidar,
+          zona: zonaValidar,
           estado: 'RESERVADA',
           id: { not: reservaExistente.id }
         }
       });
 
-      const personasOtras = otrasReservas.reduce((sum, r) => sum + r.cantidadPersonas, 0);
+      const personasYaReservadasEnZona = otrasReservasEnZona.reduce((sum, r) => sum + r.cantidadPersonas, 0);
 
-      if (personasOtras + cantidadValidar > capacidadTotal) {
+      // Validar capacidad de la zona
+      const validacionCapacidad = validarCapacidadZona(cantidadValidar, personasYaReservadasEnZona, zonaValidar);
+      
+      if (!validacionCapacidad.valido) {
         return res.status(400).json({
-          error: 'Capacidad insuficiente',
-          mensaje: `No hay suficiente capacidad para ${cantidadValidar} personas en ese turno.`
+          error: validacionCapacidad.mensaje,
+          detalles: {
+            zona: zonaValidar,
+            personasSolicitadas: cantidadValidar,
+            personasYaReservadas: personasYaReservadasEnZona,
+            lugaresDisponibles: validacionCapacidad.disponibles
+          }
         });
       }
     }
@@ -662,7 +739,12 @@ router.put('/:id', verificarToken, async (req: AuthRequest, res) => {
 
     res.json({
       mensaje: 'Reserva actualizada correctamente.',
-      reserva: reservaActualizada
+      reserva: {
+        ...reservaActualizada,
+        fecha: serializarFechaISO(reservaActualizada.fecha),
+        fechaCreacion: serializarFechaISO(reservaActualizada.fechaCreacion),
+        fechaUltimaModificacion: serializarFechaISO(reservaActualizada.fechaUltimaModificacion)
+      }
     });
   } catch (error) {
     console.error('Error al actualizar reserva:', error);
@@ -719,7 +801,12 @@ router.put('/:id/cancelar', verificarToken, async (req: AuthRequest, res) => {
 
     res.json({
       mensaje: 'Reserva cancelada correctamente.',
-      reserva: reservaCancelada
+      reserva: {
+        ...reservaCancelada,
+        fecha: serializarFechaISO(reservaCancelada.fecha),
+        fechaCreacion: serializarFechaISO(reservaCancelada.fechaCreacion),
+        fechaUltimaModificacion: serializarFechaISO(reservaCancelada.fechaUltimaModificacion)
+      }
     });
   } catch (error) {
     console.error('Error al cancelar reserva:', error);

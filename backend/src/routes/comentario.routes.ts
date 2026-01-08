@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { prisma } from '../index';
 import { verificarToken, AuthRequest } from '../middleware/auth.middleware';
-import { esReservaPasada } from '../utils/validaciones';
+import { esReservaPasada, serializarFechaISO } from '../utils/validaciones';
 
 const router = Router();
 
@@ -65,7 +65,10 @@ router.post('/reserva/:reservaId', verificarToken, async (req: AuthRequest, res)
 
     res.json({
       mensaje: comentarioExistente ? 'Comentario actualizado.' : 'Comentario agregado.',
-      comentario
+      comentario: {
+        ...comentario,
+        fechaComentario: comentario.fechaComentario.toISOString()
+      }
     });
   } catch (error) {
     console.error('Error al guardar comentario:', error);

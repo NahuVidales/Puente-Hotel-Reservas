@@ -1,9 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { reservaService } from '../../services/reserva.service';
 import { parametrosService } from '../../services/otros.service';
-import { Reserva, Turno, Planificacion, TURNOS } from '../../types';
-import { fechaISO, formatearFecha, formatearFechaCorta, getNombreTurno, getNombreZona, getEstadoReserva } from '../../utils/helpers';
+import { Reserva, Turno, Planificacion, TURNOS, Zona } from '../../types';
+import { fechaISO, formatearFecha, formatearFechaCorta, getNombreTurno, getNombreZona, getEstadoReserva, parsearFechaISO } from '../../utils/helpers';
 import { OcupacionBar } from '../../components/OcupacionBar';
 import toast from 'react-hot-toast';
 import './AdminPages.css';
@@ -16,6 +16,13 @@ export function AdminPanelPage() {
   const [loading, setLoading] = useState(true);
   const [cancelarModal, setCancelarModal] = useState<number | null>(null);
   const [observacionesModal, setObservacionesModal] = useState<string | null>(null);
+  const [zonaFiltro, setZonaFiltro] = useState<'TODAS' | Zona>('TODAS');
+  const [modalReservas, setModalReservas] = useState(false);
+  const [modalPersonas, setModalPersonas] = useState(false);
+  const [modalOcupacion, setModalOcupacion] = useState(false);
+  const [filtroZonaDetalle, setFiltroZonaDetalle] = useState<Zona | null>(null);
+  const [filtroCantidadDetalle, setFiltroCantidadDetalle] = useState<number | null>(null);
+  const detailTableRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     cargarDatos();
@@ -49,10 +56,29 @@ export function AdminPanelPage() {
   };
 
   const cambiarFecha = (dias: number) => {
-    const nuevaFecha = new Date(fecha);
-    nuevaFecha.setDate(nuevaFecha.getDate() + dias);
-    setFecha(fechaISO(nuevaFecha));
+    const fechaActual = parsearFechaISO(fecha);
+    fechaActual.setDate(fechaActual.getDate() + dias);
+    setFecha(fechaISO(fechaActual));
   };
+
+  const manejarClickDistribucion = (zona: Zona, cantidadPersonas: number) => {
+    setFiltroZonaDetalle(zona);
+    setFiltroCantidadDetalle(cantidadPersonas);
+    
+    // Desplazar a la tabla de detalle
+    setTimeout(() => {
+      detailTableRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }, 100);
+  };
+
+  const limpiarFiltrosDetalle = () => {
+    setFiltroZonaDetalle(null);
+    setFiltroCantidadDetalle(null);
+  };
+
+  const reservasFiltradas = filtroZonaDetalle && filtroCantidadDetalle 
+    ? reservas.filter(r => r.zona === filtroZonaDetalle && r.cantidadPersonas === filtroCantidadDetalle)
+    : reservas;
 
   return (
     <div className="page">
@@ -106,7 +132,7 @@ export function AdminPanelPage() {
             {/* Resumen */}
             {planificacion && (
               <div className="resumen-grid">
-                <div className="resumen-card card">
+                <div className="resumen-card card clickable" onClick={() => setModalOcupacion(true)}>
                   <h3>Ocupación Total</h3>
                   <OcupacionBar
                     porcentaje={planificacion.resumen.porcentajeOcupacion}
@@ -115,7 +141,7 @@ export function AdminPanelPage() {
                   />
                 </div>
 
-                <div className="resumen-card card">
+                <div className="resumen-card card clickable" onClick={() => setModalReservas(true)}>
                   <h3>Reservas</h3>
                   <div className="resumen-numero">{planificacion.resumen.totalReservas}</div>
                   <p className="text-muted">
@@ -123,7 +149,7 @@ export function AdminPanelPage() {
                   </p>
                 </div>
 
-                <div className="resumen-card card">
+                <div className="resumen-card card clickable" onClick={() => setModalPersonas(true)}>
                   <h3>Personas</h3>
                   <div className="resumen-numero">{planificacion.resumen.totalPersonas}</div>
                   <p className="text-muted">
@@ -133,33 +159,64 @@ export function AdminPanelPage() {
               </div>
             )}
 
-            {/* Tabla de planificación por zona y tamaño */}
-            {planificacion && planificacion.porZonaYTamano.length > 0 && (
+            {/* Tabla de distribución por zona y tamaño */}
+            {planificacion && (
               <div className="card mt-3">
                 <div className="card-header">
-                  <h3 className="card-title">Distribución por Zona y Tamaño de Grupo</h3>
+                  <h3 className="card-title">Distribución de mesas</h3>
+                  <div className="filtro-zona">
+                    <select
+                      value={zonaFiltro}
+                      onChange={(e) => setZonaFiltro(e.target.value as 'TODAS' | Zona)}
+                      className="form-input"
+                    >
+                      <option value="TODAS">Todas</option>
+                      <option value="FRENTE">Frente</option>
+                      <option value="GALERIA">Galería</option>
+                      <option value="SALON">Salón</option>
+                    </select>
+                  </div>
                 </div>
                 <div className="table-container">
                   <table className="table">
                     <thead>
                       <tr>
                         <th>Zona</th>
-                        <th>Tamaño Grupo</th>
                         <th>Reservas</th>
                         <th>Personas</th>
                         <th>Con Obs.</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {planificacion.porZonaYTamano.map((grupo, idx) => (
-                        <tr key={idx}>
-                          <td>{getNombreZona(grupo.zona)}</td>
-                          <td>{grupo.tamano} personas</td>
-                          <td>{grupo.reservas}</td>
-                          <td>{grupo.personas}</td>
-                          <td>{grupo.conObservaciones > 0 ? '✓' : '-'}</td>
-                        </tr>
-                      ))}
+                      {(() => {
+                        const filtrados = planificacion.porZonaYTamano.filter(g => 
+                          zonaFiltro === 'TODAS' || g.zona === zonaFiltro
+                        );
+                        
+                        if (filtrados.length === 0) {
+                          return (
+                            <tr>
+                              <td colSpan={4} style={{ textAlign: 'center', color: '#999' }}>
+                                No hay datos para esta zona
+                              </td>
+                            </tr>
+                          );
+                        }
+                        
+                        return filtrados.map((grupo) => (
+                          <tr 
+                            key={`${grupo.zona}-${grupo.tamano}`}
+                            className="clickable-row"
+                            onClick={() => manejarClickDistribucion(grupo.zona, parseInt(grupo.tamano))}
+                            style={{ cursor: 'pointer' }}
+                          >
+                            <td>{getNombreZona(grupo.zona)}</td>
+                            <td>{grupo.reservas}</td>
+                            <td>{grupo.personas}</td>
+                            <td>{grupo.conObservaciones > 0 ? '✓' : '-'}</td>
+                          </tr>
+                        ));
+                      })()}
                     </tbody>
                   </table>
                 </div>
@@ -167,14 +224,33 @@ export function AdminPanelPage() {
             )}
 
             {/* Tabla de reservas detalladas */}
-            <div className="card mt-3">
+            <div className="card mt-3" ref={detailTableRef}>
               <div className="card-header">
-                <h3 className="card-title">Detalle de Reservas</h3>
+                <h3 className="card-title">
+                  Detalle de Reservas
+                  {filtroZonaDetalle && filtroCantidadDetalle && (
+                    <span style={{ fontSize: '0.9em', color: '#666', marginLeft: '10px' }}>
+                      (Filtrado: {getNombreZona(filtroZonaDetalle)} - {filtroCantidadDetalle} personas)
+                    </span>
+                  )}
+                </h3>
+                {(filtroZonaDetalle || filtroCantidadDetalle) && (
+                  <button 
+                    className="btn btn-secondary btn-sm"
+                    onClick={limpiarFiltrosDetalle}
+                  >
+                    Ver todas las reservas
+                  </button>
+                )}
               </div>
 
-              {reservas.length === 0 ? (
+              {reservasFiltradas.length === 0 ? (
                 <div className="empty-state-small">
-                  <p>No hay reservas para este día y turno</p>
+                  <p>
+                    {filtroZonaDetalle && filtroCantidadDetalle 
+                      ? 'No hay reservas con este filtro'
+                      : 'No hay reservas para este día y turno'}
+                  </p>
                 </div>
               ) : (
                 <div className="table-container">
@@ -190,7 +266,7 @@ export function AdminPanelPage() {
                       </tr>
                     </thead>
                     <tbody>
-                      {reservas.map((reserva) => {
+                      {reservasFiltradas.map((reserva) => {
                         const estadoInfo = getEstadoReserva(reserva.estado);
                         return (
                           <tr key={reserva.id}>
@@ -317,6 +393,123 @@ export function AdminPanelPage() {
               </div>
               <div className="modal-footer">
                 <button className="btn btn-primary" onClick={() => setObservacionesModal(null)}>
+                  Cerrar
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Modal Reservas por Zona */}
+        {modalReservas && planificacion && (
+          <div className="modal-overlay" onClick={() => setModalReservas(false)}>
+            <div className="modal" onClick={(e) => e.stopPropagation()}>
+              <div className="modal-header">
+                <h3>Reservas por Zona</h3>
+              </div>
+              <div className="modal-body">
+                <div className="table-container">
+                  <table className="table">
+                    <thead>
+                      <tr>
+                        <th>Zona</th>
+                        <th>Reservas</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {['FRENTE', 'GALERIA', 'SALON'].map((zona) => (
+                        <tr key={zona}>
+                          <td>{getNombreZona(zona as Zona)}</td>
+                          <td>{planificacion.porZona[zona as Zona]?.reservas || 0}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+              <div className="modal-footer">
+                <button className="btn btn-primary" onClick={() => setModalReservas(false)}>
+                  Cerrar
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Modal Personas por Zona */}
+        {modalPersonas && planificacion && (
+          <div className="modal-overlay" onClick={() => setModalPersonas(false)}>
+            <div className="modal" onClick={(e) => e.stopPropagation()}>
+              <div className="modal-header">
+                <h3>Personas por Zona</h3>
+              </div>
+              <div className="modal-body">
+                <div className="table-container">
+                  <table className="table">
+                    <thead>
+                      <tr>
+                        <th>Zona</th>
+                        <th>Personas</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {['FRENTE', 'GALERIA', 'SALON'].map((zona) => (
+                        <tr key={zona}>
+                          <td>{getNombreZona(zona as Zona)}</td>
+                          <td>{planificacion.porZona[zona as Zona]?.personas || 0}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+              <div className="modal-footer">
+                <button className="btn btn-primary" onClick={() => setModalPersonas(false)}>
+                  Cerrar
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Modal Ocupación por Zona */}
+        {modalOcupacion && planificacion && (
+          <div className="modal-overlay" onClick={() => setModalOcupacion(false)}>
+            <div className="modal" onClick={(e) => e.stopPropagation()}>
+              <div className="modal-header">
+                <h3>Ocupación por Zona</h3>
+              </div>
+              <div className="modal-body">
+                <div className="table-container">
+                  <table className="table">
+                    <thead>
+                      <tr>
+                        <th>Zona</th>
+                        <th>Capacidad</th>
+                        <th>Personas</th>
+                        <th>% Ocupación</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {['FRENTE', 'GALERIA', 'SALON'].map((zona) => {
+                        const capacidad = planificacion.capacidadPorZona[zona as Zona];
+                        const personas = planificacion.porZona[zona as Zona]?.personas || 0;
+                        const porcentaje = Math.round((personas / capacidad) * 100);
+                        return (
+                          <tr key={zona}>
+                            <td>{getNombreZona(zona as Zona)}</td>
+                            <td>{capacidad}</td>
+                            <td>{personas}</td>
+                            <td>{porcentaje}%</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+              <div className="modal-footer">
+                <button className="btn btn-primary" onClick={() => setModalOcupacion(false)}>
                   Cerrar
                 </button>
               </div>

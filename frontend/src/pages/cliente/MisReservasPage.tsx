@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { reservaService } from '../../services/reserva.service';
 import { comentarioService } from '../../services/otros.service';
 import { Reserva } from '../../types';
-import { formatearFecha, getNombreTurno, getNombreZona, getEstadoReserva } from '../../utils/helpers';
+import { formatearFecha, getNombreTurno, getNombreZona, getEstadoReserva, obtenerDia, obtenerMesAno } from '../../utils/helpers';
 import toast from 'react-hot-toast';
 import './MisReservasPage.css';
 
@@ -112,10 +112,10 @@ export function MisReservasPage() {
                   <div className="reserva-header">
                     <div className="reserva-fecha">
                       <span className="fecha-dia">
-                        {new Date(reserva.fecha).getDate()}
+                        {obtenerDia(reserva.fecha)}
                       </span>
                       <span className="fecha-mes">
-                        {new Date(reserva.fecha).toLocaleDateString('es-ES', { month: 'short', year: 'numeric' })}
+                        {obtenerMesAno(reserva.fecha)}
                       </span>
                     </div>
                     <div className="reserva-info">

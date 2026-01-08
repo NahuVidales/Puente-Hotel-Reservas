@@ -5,15 +5,12 @@ import { verificarToken, verificarResponsable, AuthRequest } from '../middleware
 
 const router = Router();
 
-// Obtener todos los empleados (solo responsables)
+// Obtener todos los usuarios del sistema (solo responsables)
 router.get('/', verificarToken, verificarResponsable, async (req: AuthRequest, res) => {
   try {
-    console.log('[GET /empleados] Obteniendo lista de empleados');
+    console.log('[GET /empleados] Obteniendo lista de usuarios');
 
     const empleados = await prisma.usuario.findMany({
-      where: {
-        rol: 'RESPONSABLE'
-      },
       select: {
         id: true,
         nombre: true,
@@ -28,12 +25,12 @@ router.get('/', verificarToken, verificarResponsable, async (req: AuthRequest, r
       }
     });
 
-    console.log('[GET /empleados] Empleados encontrados:', empleados.length);
+    console.log('[GET /empleados] Usuarios encontrados:', empleados.length);
 
     res.json({ empleados });
   } catch (error) {
-    console.error('[GET /empleados] Error al obtener empleados:', error);
-    res.status(500).json({ error: 'Error al obtener empleados.' });
+    console.error('[GET /empleados] Error al obtener usuarios:', error);
+    res.status(500).json({ error: 'Error al obtener usuarios.' });
   }
 });
 
@@ -73,7 +70,7 @@ router.post('/', verificarToken, verificarResponsable, async (req: AuthRequest, 
     // Hashear contraseña
     const passwordHash = await bcrypt.hash(password, 10);
 
-    // Crear empleado
+    // Crear cliente
     const nuevoEmpleado = await prisma.usuario.create({
       data: {
         nombre,
@@ -81,7 +78,7 @@ router.post('/', verificarToken, verificarResponsable, async (req: AuthRequest, 
         telefono,
         email,
         passwordHash,
-        rol: 'RESPONSABLE' // Los empleados son responsables
+        rol: 'CLIENTE' // Los clientes creados desde admin tienen rol CLIENTE
       },
       select: {
         id: true,
@@ -97,7 +94,7 @@ router.post('/', verificarToken, verificarResponsable, async (req: AuthRequest, 
     console.log('[POST /empleados] Empleado creado:', nuevoEmpleado.id);
 
     res.status(201).json({
-      mensaje: '¡Empleado creado exitosamente!',
+      mensaje: '¡Cliente creado exitosamente!',
       empleado: nuevoEmpleado
     });
   } catch (error) {
@@ -146,7 +143,7 @@ router.put('/:id', verificarToken, verificarResponsable, async (req: AuthRequest
     const { id } = req.params;
     const { nombre, apellido, telefono, email } = req.body;
 
-    console.log('[PUT /empleados/:id] Actualizando empleado:', id);
+    console.log('[PUT /empleados/:id] Actualizando usuario:', id);
 
     // Validaciones básicas
     if (!nombre || !apellido || !telefono || !email) {
@@ -155,20 +152,22 @@ router.put('/:id', verificarToken, verificarResponsable, async (req: AuthRequest
       });
     }
 
-    // Verificar si el empleado existe y es responsable
-    const empleadoExistente = await prisma.usuario.findFirst({
-      where: {
-        id: parseInt(id),
-        rol: 'RESPONSABLE'
-      }
+    // Verificar si el usuario existe (CLIENTE o RESPONSABLE)
+    const usuarioExistente = await prisma.usuario.findUnique({
+      where: { id: parseInt(id) }
     });
 
-    if (!empleadoExistente) {
-      return res.status(404).json({ error: 'Empleado no encontrado.' });
+    if (!usuarioExistente) {
+      return res.status(404).json({ error: 'Usuario no encontrado.' });
+    }
+
+    // Solo permitir editar usuarios con rol CLIENTE (para la gestión de clientes)
+    if (usuarioExistente.rol !== 'CLIENTE') {
+      return res.status(403).json({ error: 'Solo se pueden editar usuarios con rol CLIENTE.' });
     }
 
     // Si cambia el email, verificar que no esté en uso
-    if (email !== empleadoExistente.email) {
+    if (email !== usuarioExistente.email) {
       const emailEnUso = await prisma.usuario.findUnique({
         where: { email }
       });
@@ -180,8 +179,8 @@ router.put('/:id', verificarToken, verificarResponsable, async (req: AuthRequest
       }
     }
 
-    // Actualizar empleado
-    const empleadoActualizado = await prisma.usuario.update({
+    // Actualizar usuario
+    const usuarioActualizado = await prisma.usuario.update({
       where: { id: parseInt(id) },
       data: {
         nombre,
@@ -200,15 +199,65 @@ router.put('/:id', verificarToken, verificarResponsable, async (req: AuthRequest
       }
     });
 
-    console.log('[PUT /empleados/:id] Empleado actualizado:', empleadoActualizado.id);
+    console.log('[PUT /empleados/:id] Usuario actualizado:', usuarioActualizado.id);
 
     res.json({
-      mensaje: 'Empleado actualizado correctamente.',
-      empleado: empleadoActualizado
+      mensaje: 'Usuario actualizado correctamente.',
+      empleado: usuarioActualizado
     });
   } catch (error) {
     console.error('[PUT /empleados/:id] Error:', error);
-    res.status(500).json({ error: 'Error al actualizar empleado.' });
+    res.status(500).json({ error: 'Error al actualizar usuario.' });
+  }
+});
+
+// Eliminar usuario (solo responsables)
+router.delete('/:id', verificarToken, verificarResponsable, async (req: AuthRequest, res) => {
+  try {
+    const { id } = req.params;
+
+    console.log('[DELETE /empleados/:id] Eliminando usuario:', id);
+
+    // Verificar si el usuario existe
+    const usuarioExistente = await prisma.usuario.findUnique({
+      where: { id: parseInt(id) }
+    });
+
+    if (!usuarioExistente) {
+      return res.status(404).json({ error: 'Usuario no encontrado.' });
+    }
+
+    // No permitir eliminar al usuario administrador (si el rol es RESPONSABLE y es el único o algo similar)
+    // Por ahora, permitimos eliminar cualquier usuario excepto nosotros mismos
+    if (usuarioExistente.id === req.usuario?.id) {
+      return res.status(400).json({ error: 'No puedes eliminar tu propia cuenta.' });
+    }
+
+    // Eliminar todas las reservas del usuario primero (por integridad referencial)
+    await prisma.reserva.deleteMany({
+      where: { clienteId: parseInt(id) }
+    });
+
+    // Eliminar el usuario
+    const usuarioEliminado = await prisma.usuario.delete({
+      where: { id: parseInt(id) },
+      select: {
+        id: true,
+        nombre: true,
+        apellido: true,
+        email: true
+      }
+    });
+
+    console.log('[DELETE /empleados/:id] Usuario eliminado:', usuarioEliminado.id);
+
+    res.json({
+      mensaje: 'Usuario eliminado correctamente.',
+      usuario: usuarioEliminado
+    });
+  } catch (error) {
+    console.error('[DELETE /empleados/:id] Error:', error);
+    res.status(500).json({ error: 'Error al eliminar usuario.' });
   }
 });
 

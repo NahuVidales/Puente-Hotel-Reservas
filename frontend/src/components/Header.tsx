@@ -27,7 +27,7 @@ export function Header() {
                 <>
                   <Link to="/admin" className="nav-link">Panel</Link>
                   <Link to="/admin/reservas" className="nav-link">Reservas</Link>
-                  <Link to="/admin/empleados" className="nav-link">Empleados</Link>
+                  <Link to="/admin/clientes" className="nav-link">Clientes</Link>
                 </>
               ) : (
                 // Menú para clientes

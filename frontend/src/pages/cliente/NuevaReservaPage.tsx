@@ -4,7 +4,7 @@ import { reservaService } from '../../services/reserva.service';
 import { parametrosService } from '../../services/otros.service';
 import { OcupacionBar } from '../../components/OcupacionBar';
 import { Turno, Zona, Disponibilidad, TURNOS, ZONAS } from '../../types';
-import { getDiasDisponibles, fechaISO, formatearFecha, getNombreZona } from '../../utils/helpers';
+import { getDiasDisponibles, fechaISO, formatearFecha, getNombreZona, validarCapacidadZona } from '../../utils/helpers';
 import toast from 'react-hot-toast';
 import './NuevaReservaPage.css';
 
@@ -93,6 +93,17 @@ export function NuevaReservaPage() {
       return;
     }
 
+    // Validar capacidad de la zona antes de enviar
+    if (disponibilidad) {
+      const disponiblesEnZona = disponibilidad.ocupacion.porZona[zona as Zona].disponibles;
+      const validacion = validarCapacidadZona(cantidadPersonas, disponiblesEnZona, zona as Zona);
+      
+      if (!validacion.valido) {
+        toast.error(validacion.mensaje || 'Error de validación');
+        return;
+      }
+    }
+
     setLoading(true);
     try {
       await reservaService.crearReserva({
@@ -106,13 +117,15 @@ export function NuevaReservaPage() {
       toast.success('¡Reserva creada exitosamente!');
       navigate('/cliente/mis-reservas');
     } catch (error: any) {
-      const mensaje = error.response?.data?.mensaje || error.response?.data?.error || 'Error al crear reserva';
+      const mensaje = error.response?.data?.error || error.response?.data?.mensaje || 'Error al crear reserva';
       toast.error(mensaje);
       
       // Si hay detalles de capacidad, mostrarlos
       if (error.response?.data?.detalles) {
-        const { lugaresDisponibles, porcentajeOcupacion, sugerencia } = error.response.data.detalles;
-        toast.error(`${sugerencia}`, { duration: 5000 });
+        const { lugaresDisponibles } = error.response.data.detalles;
+        if (lugaresDisponibles !== undefined) {
+          toast.error(`Lugares disponibles en la zona: ${lugaresDisponibles}`, { duration: 5000 });
+        }
       }
     } finally {
       setLoading(false);

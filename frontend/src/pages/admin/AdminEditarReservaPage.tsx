@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { reservaService } from '../../services/reserva.service';
 import { parametrosService } from '../../services/otros.service';
 import { Reserva, Turno, Zona, TURNOS, ZONAS, Disponibilidad } from '../../types';
-import { getDiasDisponibles, fechaISO, formatearFecha } from '../../utils/helpers';
+import { getDiasDisponibles, fechaISO, formatearFecha, validarCapacidadZona } from '../../utils/helpers';
 import { OcupacionBar } from '../../components/OcupacionBar';
 import toast from 'react-hot-toast';
 import './AdminPages.css';
@@ -76,6 +76,21 @@ export function AdminEditarReservaPage() {
       toast.error('Completa todos los campos');
       return;
     }
+    if (cantidadPersonas < 1) {
+      toast.error('La cantidad de personas debe ser al menos 1');
+      return;
+    }
+
+    // Validar capacidad de la zona antes de enviar
+    if (disponibilidad) {
+      const disponiblesEnZona = disponibilidad.ocupacion.porZona[zona as Zona].disponibles;
+      const validacion = validarCapacidadZona(cantidadPersonas, disponiblesEnZona, zona as Zona);
+      
+      if (!validacion.valido) {
+        toast.error(validacion.mensaje || 'Error de validación');
+        return;
+      }
+    }
 
     setGuardando(true);
     try {
@@ -90,8 +105,16 @@ export function AdminEditarReservaPage() {
       toast.success('Reserva actualizada');
       navigate('/admin');
     } catch (error: any) {
-      const mensaje = error.response?.data?.mensaje || error.response?.data?.error || 'Error al actualizar';
+      const mensaje = error.response?.data?.error || error.response?.data?.mensaje || 'Error al actualizar';
       toast.error(mensaje);
+
+      // Si hay detalles de capacidad, mostrarlos
+      if (error.response?.data?.detalles) {
+        const { lugaresDisponibles } = error.response.data.detalles;
+        if (lugaresDisponibles !== undefined) {
+          toast.error(`Lugares disponibles en la zona: ${lugaresDisponibles}`, { duration: 5000 });
+        }
+      }
     } finally {
       setGuardando(false);
     }

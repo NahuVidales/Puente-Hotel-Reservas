@@ -4,10 +4,21 @@ import { Reserva, ReservaForm, Disponibilidad, Turno, Planificacion, EstadoReser
 export const reservaService = {
   // Obtener disponibilidad para fecha y turno
   async getDisponibilidad(fecha: string, turno: Turno): Promise<Disponibilidad> {
-    const response = await api.get('/reservas/disponibilidad', {
-      params: { fecha, turno }
-    });
-    return response.data;
+    console.log('[ReservaService] getDisponibilidad - Parámetros:', { fecha, turno, tipoTurno: typeof turno });
+    try {
+      const response = await api.get('/reservas/disponibilidad', {
+        params: { fecha, turno }
+      });
+      console.log('[ReservaService] getDisponibilidad - Respuesta:', response.data);
+      return response.data;
+    } catch (error: any) {
+      console.error('[ReservaService] getDisponibilidad - Error:', {
+        status: error.response?.status,
+        data: error.response?.data,
+        message: error.message
+      });
+      throw error;
+    }
   },
 
   // Crear nueva reserva

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { empleadoService, Empleado } from '../../services/empleados.service';
 import toast from 'react-hot-toast';
+import { formatearTimestamp, formatearTimestampCorto } from '../../utils/helpers';
 import './AdminPages.css';
 import './AdminEmpleadosPage.css';
 
@@ -128,7 +129,7 @@ export function AdminEmpleadosPage() {
               <div className="form-group">
                 <label className="form-label">Email (Usuario)</label>
                 <input
-                  type="email"
+                  type="text"
                   className="form-input"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
@@ -209,7 +210,7 @@ export function AdminEmpleadosPage() {
                 <h3>{empleado.nombre} {empleado.apellido}</h3>
                 <p className="email">{empleado.email}</p>
                 <p className="fecha">
-                  Desde: {new Date(empleado.fechaCreacion).toLocaleDateString('es-ES')}
+                  Desde: {formatearTimestampCorto(empleado.fechaCreacion)}
                 </p>
               </div>
             </button>
@@ -254,11 +255,7 @@ export function AdminEmpleadosPage() {
                 
                 <div className="detalle-campo">
                   <label>Fecha de Registro</label>
-                  <p>{new Date(empleadoSeleccionado.fechaCreacion).toLocaleDateString('es-ES', {
-                    year: 'numeric',
-                    month: 'long',
-                    day: 'numeric'
-                  })}</p>
+                  <p>{formatearTimestamp(empleadoSeleccionado.fechaCreacion)}</p>
                 </div>
               </div>
             </div>

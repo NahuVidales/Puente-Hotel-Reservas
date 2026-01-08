@@ -180,12 +180,34 @@ a:hover {
 }
 
 .btn-danger {
+  background-color: #dc3545;
+  color: white;
+}
+
+.btn-danger:hover:not(:disabled) {
+  background-color: #c82333;
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-md);
+}
+
+.btn-danger {
   background-color: var(--color-error);
   color: white;
 }
 
 .btn-danger:hover:not(:disabled) {
   background-color: #B71C1C;
+}
+
+.btn-success {
+  background-color: #28a745;
+  color: white;
+}
+
+.btn-success:hover:not(:disabled) {
+  background-color: #218838;
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-md);
 }
 
 .btn-sm {

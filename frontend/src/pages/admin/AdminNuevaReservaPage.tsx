@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { reservaService } from '../../services/reserva.service';
 import { parametrosService, usuarioService } from '../../services/otros.service';
 import { Usuario, Turno, Zona, TURNOS, ZONAS, Disponibilidad } from '../../types';
-import { getDiasDisponibles, fechaISO, formatearFecha } from '../../utils/helpers';
+import { getDiasDisponibles, fechaISO, formatearFecha, validarCapacidadZona } from '../../utils/helpers';
 import { OcupacionBar } from '../../components/OcupacionBar';
 import toast from 'react-hot-toast';
 import './AdminPages.css';
@@ -96,6 +96,21 @@ export function AdminNuevaReservaPage() {
       toast.error('Completa todos los campos');
       return;
     }
+    if (cantidadPersonas < 1) {
+      toast.error('La cantidad de personas debe ser al menos 1');
+      return;
+    }
+
+    // Validar capacidad de la zona antes de enviar
+    if (disponibilidad) {
+      const disponiblesEnZona = disponibilidad.ocupacion.porZona[zona as Zona].disponibles;
+      const validacion = validarCapacidadZona(cantidadPersonas, disponiblesEnZona, zona as Zona);
+      
+      if (!validacion.valido) {
+        toast.error(validacion.mensaje || 'Error de validación');
+        return;
+      }
+    }
 
     setLoading(true);
     try {
@@ -111,8 +126,16 @@ export function AdminNuevaReservaPage() {
       toast.success('Reserva creada exitosamente');
       navigate('/admin');
     } catch (error: any) {
-      const mensaje = error.response?.data?.mensaje || error.response?.data?.error || 'Error al crear reserva';
+      const mensaje = error.response?.data?.error || error.response?.data?.mensaje || 'Error al crear reserva';
       toast.error(mensaje);
+
+      // Si hay detalles de capacidad, mostrarlos
+      if (error.response?.data?.detalles) {
+        const { lugaresDisponibles } = error.response.data.detalles;
+        if (lugaresDisponibles !== undefined) {
+          toast.error(`Lugares disponibles en la zona: ${lugaresDisponibles}`, { duration: 5000 });
+        }
+      }
     } finally {
       setLoading(false);
     }
