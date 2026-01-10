@@ -10,6 +10,9 @@ import { HomePage } from './pages/HomePage';
 import { LoginPage } from './pages/LoginPage';
 import { RegistroPage } from './pages/RegistroPage';
 
+// Páginas de perfil
+import { MiPerfilPage } from './pages/MiPerfilPage';
+
 // Páginas cliente
 import { NuevaReservaPage } from './pages/cliente/NuevaReservaPage';
 import { MisReservasPage } from './pages/cliente/MisReservasPage';
@@ -56,6 +59,7 @@ function AppContent() {
           
           {/* Rutas protegidas de cliente */}
           <Route element={<ProtectedRoute />}>
+            <Route path="/mi-perfil" element={<MiPerfilPage />} />
             <Route path="/cliente" element={<Navigate to="/cliente/nueva-reserva" replace />} />
             <Route path="/cliente/nueva-reserva" element={<NuevaReservaPage />} />
             <Route path="/cliente/mis-reservas" element={<MisReservasPage />} />
@@ -64,8 +68,8 @@ function AppContent() {
           
           {/* Rutas protegidas de admin/responsable */}
           <Route element={<ProtectedRoute requiereResponsable />}>
+            <Route path="/mi-perfil" element={<MiPerfilPage />} />
             <Route path="/admin" element={<AdminPanelPage />} />
-            <Route path="/admin/reservas" element={<AdminPanelPage />} />
             <Route path="/admin/nueva-reserva" element={<AdminNuevaReservaPage />} />
             <Route path="/admin/editar-reserva/:id" element={<AdminEditarReservaPage />} />
             <Route path="/admin/clientes" element={<AdminClientesPage />} />

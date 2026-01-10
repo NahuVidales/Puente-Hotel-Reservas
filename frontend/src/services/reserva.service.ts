@@ -53,6 +53,23 @@ export const reservaService = {
     return response.data;
   },
 
+  // Crear cliente nuevo + reserva (operación atómica)
+  async crearClienteYReserva(datos: {
+    nombre: string;
+    apellido: string;
+    telefono: string;
+    email: string;
+    password: string;
+    fecha: string;
+    turno: string;
+    zona: string;
+    cantidadPersonas: number;
+    observaciones?: string;
+  }): Promise<{ mensaje: string; cliente: any; reserva: Reserva }> {
+    const response = await api.post('/reservas/con-cliente-nuevo', datos);
+    return response.data;
+  },
+
   // ===== RUTAS ADMIN =====
 
   // Obtener todas las reservas (admin)

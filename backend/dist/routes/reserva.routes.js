@@ -1,6 +1,10 @@
 "use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = require("express");
+const bcryptjs_1 = __importDefault(require("bcryptjs"));
 const index_1 = require("../index");
 const auth_middleware_1 = require("../middleware/auth.middleware");
 const validaciones_1 = require("../utils/validaciones");
@@ -701,6 +705,188 @@ router.put('/:id/cancelar', auth_middleware_1.verificarToken, async (req, res) =
     catch (error) {
         console.error('Error al cancelar reserva:', error);
         res.status(500).json({ error: 'Error al cancelar la reserva.' });
+    }
+});
+// Crear cliente nuevo + reserva (operación atómica)
+// POST /reservas/con-cliente-nuevo
+router.post('/con-cliente-nuevo', auth_middleware_1.verificarToken, auth_middleware_1.verificarResponsable, async (req, res) => {
+    try {
+        const { nombre, apellido, telefono, email, password, fecha, turno, zona, cantidadPersonas, observaciones } = req.body;
+        console.log('[POST /reservas/con-cliente-nuevo] Iniciando creación de cliente + reserva');
+        console.log('[POST /reservas/con-cliente-nuevo] Cliente:', { nombre, apellido, telefono, email });
+        // Validaciones básicas
+        if (!nombre || !apellido || !telefono || !email || !password) {
+            return res.status(400).json({
+                error: 'Se requieren todos los datos del cliente: nombre, apellido, teléfono, email y contraseña.'
+            });
+        }
+        if (!fecha || !turno || !zona || !cantidadPersonas) {
+            return res.status(400).json({
+                error: 'Se requieren todos los datos de la reserva: fecha, turno, zona y cantidad de personas.'
+            });
+        }
+        // Validar cantidad de personas
+        const validacionCantidad = (0, validaciones_1.validarCantidadPersonas)(cantidadPersonas);
+        if (!validacionCantidad.valido) {
+            return res.status(400).json({ error: validacionCantidad.mensaje });
+        }
+        // Validar longitud de contraseña
+        if (password.length < 4) {
+            return res.status(400).json({
+                error: 'La contraseña debe tener al menos 4 caracteres.'
+            });
+        }
+        // Validar formato de email (básico)
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRegex.test(email)) {
+            return res.status(400).json({
+                error: 'El email debe ser válido (ejemplo: usuario@dominio.com)'
+            });
+        }
+        // Verificar que el email sea único
+        const usuarioExistente = await index_1.prisma.usuario.findUnique({
+            where: { email }
+        });
+        if (usuarioExistente) {
+            console.log('[POST /reservas/con-cliente-nuevo] Email ya existe:', email);
+            return res.status(400).json({
+                error: 'El email ya existe. Elegí un email distinto.'
+            });
+        }
+        // Validar fecha y turno de la reserva
+        const fechaReserva = (0, validaciones_1.parsearFechaISO)(fecha);
+        const turnoStr = turno;
+        const zonaStr = zona;
+        if (!(0, validaciones_1.esDiaApertura)(fechaReserva)) {
+            const diaSemana = fechaReserva.getDay();
+            return res.status(400).json({
+                error: `El restaurante no abre los ${validaciones_1.NOMBRES_DIAS[diaSemana]}. Abrimos de martes a sábado.`
+            });
+        }
+        // Obtener parámetros
+        const parametros = await index_1.prisma.parametrosCapacidadRestaurante.findFirst();
+        if (!parametros) {
+            return res.status(500).json({ error: 'Error de configuración del restaurante.' });
+        }
+        if (!(0, validaciones_1.estaEnRangoAnticipacion)(fechaReserva, parametros.anticipacionMaximaDias)) {
+            return res.status(400).json({
+                error: `Solo se permiten reservas con hasta ${parametros.anticipacionMaximaDias} días de anticipación.`
+            });
+        }
+        // Calcular ocupación actual por zona
+        const fechaInicio = new Date(fechaReserva);
+        fechaInicio.setHours(0, 0, 0, 0);
+        const fechaFin = new Date(fechaReserva);
+        fechaFin.setHours(23, 59, 59, 999);
+        const reservasEnZona = await index_1.prisma.reserva.findMany({
+            where: {
+                fecha: { gte: fechaInicio, lte: fechaFin },
+                turno: turnoStr,
+                zona: zonaStr,
+                estado: 'RESERVADA'
+            }
+        });
+        const personasYaReservadasEnZona = reservasEnZona.reduce((sum, r) => sum + r.cantidadPersonas, 0);
+        // Validar capacidad de la zona
+        const validacionCapacidad = (0, validaciones_1.validarCapacidadZona)(cantidadPersonas, personasYaReservadasEnZona, zonaStr);
+        if (!validacionCapacidad.valido) {
+            console.log('[POST /reservas/con-cliente-nuevo] Capacidad insuficiente:', validacionCapacidad.mensaje);
+            return res.status(400).json({
+                error: validacionCapacidad.mensaje,
+                detalles: {
+                    zona: zonaStr,
+                    personasSolicitadas: cantidadPersonas,
+                    personasYaReservadas: personasYaReservadasEnZona,
+                    lugaresDisponibles: validacionCapacidad.disponibles
+                }
+            });
+        }
+        // ✅ OPERACIÓN ATÓMICA: Crear cliente y reserva en transacción
+        console.log('[POST /reservas/con-cliente-nuevo] Iniciando transacción para crear cliente + reserva');
+        const passwordHash = await bcryptjs_1.default.hash(password, 10);
+        const result = await index_1.prisma.$transaction(async (tx) => {
+            // 1. Crear el usuario (cliente)
+            const nuevoCliente = await tx.usuario.create({
+                data: {
+                    nombre,
+                    apellido,
+                    telefono,
+                    email,
+                    passwordHash,
+                    rol: 'CLIENTE'
+                }
+            });
+            console.log('[POST /reservas/con-cliente-nuevo] Cliente creado. ID:', nuevoCliente.id);
+            // 2. Crear la reserva asociada al cliente
+            const nuevaReserva = await tx.reserva.create({
+                data: {
+                    clienteId: nuevoCliente.id,
+                    fecha: fechaReserva,
+                    turno: turnoStr,
+                    zona: zonaStr,
+                    cantidadPersonas,
+                    observaciones: observaciones || null,
+                    estado: 'RESERVADA'
+                },
+                include: {
+                    cliente: {
+                        select: {
+                            id: true,
+                            nombre: true,
+                            apellido: true,
+                            email: true,
+                            telefono: true
+                        }
+                    }
+                }
+            });
+            console.log('[POST /reservas/con-cliente-nuevo] Reserva creada. ID:', nuevaReserva.id);
+            return { cliente: nuevoCliente, reserva: nuevaReserva };
+        });
+        // Calcular ocupación global actualizada
+        const todasLasReservas = await index_1.prisma.reserva.findMany({
+            where: {
+                fecha: { gte: fechaInicio, lte: fechaFin },
+                turno: turnoStr,
+                estado: 'RESERVADA'
+            }
+        });
+        const capacidadTotal = parametros.capacidadFrente + parametros.capacidadGaleria + parametros.capacidadSalon;
+        const totalPersonasReservadas = todasLasReservas.reduce((sum, r) => sum + r.cantidadPersonas, 0);
+        const nuevoPorcentaje = Math.round((totalPersonasReservadas / capacidadTotal) * 100);
+        console.log('[POST /reservas/con-cliente-nuevo] Operación completada exitosamente');
+        res.status(201).json({
+            mensaje: '¡Cliente y reserva creados exitosamente!',
+            cliente: {
+                id: result.cliente.id,
+                nombre: result.cliente.nombre,
+                apellido: result.cliente.apellido,
+                telefono: result.cliente.telefono,
+                email: result.cliente.email,
+                rol: result.cliente.rol
+            },
+            reserva: {
+                ...result.reserva,
+                fecha: (0, validaciones_1.serializarFechaISO)(result.reserva.fecha),
+                fechaCreacion: (0, validaciones_1.serializarFechaISO)(result.reserva.fechaCreacion),
+                fechaUltimaModificacion: (0, validaciones_1.serializarFechaISO)(result.reserva.fechaUltimaModificacion)
+            },
+            ocupacion: {
+                porcentajeOcupacion: nuevoPorcentaje,
+                personasReservadas: totalPersonasReservadas,
+                capacidadTotal
+            }
+        });
+    }
+    catch (error) {
+        console.error('[POST /reservas/con-cliente-nuevo] Error:', error);
+        // Si el error es de unicidad de email, devolver mensaje específico
+        if (error.code === 'P2002' && error.meta?.target?.includes('email')) {
+            return res.status(400).json({
+                error: 'El email ya existe. Elegí un email distinto.'
+            });
+        }
+        res.status(500).json({ error: 'Error al crear cliente y reserva.' });
     }
 });
 exports.default = router;

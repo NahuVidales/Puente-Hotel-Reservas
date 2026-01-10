@@ -66,6 +66,14 @@ export const authService = {
     return response.data.usuario;
   },
 
+  // Cambiar contraseña
+  async cambiarContrasena(passwordActual: string, passwordNueva: string): Promise<void> {
+    await api.put('/auth/perfil/password', {
+      passwordActual,
+      passwordNueva
+    });
+  },
+
   // Verificar si hay sesión activa
   isAuthenticated(): boolean {
     return !!localStorage.getItem('token');

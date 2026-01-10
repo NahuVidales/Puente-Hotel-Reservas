@@ -192,14 +192,48 @@ router.get('/me', verificarToken, async (req: AuthRequest, res) => {
 // Actualizar perfil
 router.put('/perfil', verificarToken, async (req: AuthRequest, res) => {
   try {
-    const { nombre, apellido, telefono } = req.body;
+    const { nombre, apellido, telefono, email } = req.body;
+    const userId = req.usuario?.id;
+
+    // Validaciones básicas
+    if (!nombre || !apellido || !telefono || !email) {
+      return res.status(400).json({
+        error: 'Nombre, apellido, teléfono y email son obligatorios.'
+      });
+    }
+
+    // Validar formato de email
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      return res.status(400).json({
+        error: 'El email debe ser válido (ejemplo: usuario@dominio.com)'
+      });
+    }
+
+    // Verificar que el email sea único (si cambió)
+    const usuarioActual = await prisma.usuario.findUnique({
+      where: { id: userId }
+    });
+
+    if (usuarioActual?.email !== email) {
+      const emailExistente = await prisma.usuario.findUnique({
+        where: { email }
+      });
+
+      if (emailExistente) {
+        return res.status(400).json({
+          error: 'El email ya existe. Elegí otro email.'
+        });
+      }
+    }
 
     const usuarioActualizado = await prisma.usuario.update({
-      where: { id: req.usuario?.id },
+      where: { id: userId },
       data: {
-        ...(nombre && { nombre }),
-        ...(apellido && { apellido }),
-        ...(telefono && { telefono })
+        nombre,
+        apellido,
+        telefono,
+        email
       },
       select: {
         id: true,
@@ -218,6 +252,61 @@ router.put('/perfil', verificarToken, async (req: AuthRequest, res) => {
   } catch (error) {
     console.error('Error al actualizar perfil:', error);
     res.status(500).json({ error: 'Error al actualizar perfil.' });
+  }
+});
+
+// Cambiar contraseña
+router.put('/perfil/password', verificarToken, async (req: AuthRequest, res) => {
+  try {
+    const { passwordActual, passwordNueva } = req.body;
+    const userId = req.usuario?.id;
+
+    // Validaciones básicas
+    if (!passwordActual || !passwordNueva) {
+      return res.status(400).json({
+        error: 'Contraseña actual y nueva son obligatorias.'
+      });
+    }
+
+    if (passwordNueva.length < 4) {
+      return res.status(400).json({
+        error: 'La contraseña nueva debe tener al menos 4 caracteres.'
+      });
+    }
+
+    // Obtener usuario actual
+    const usuario = await prisma.usuario.findUnique({
+      where: { id: userId }
+    });
+
+    if (!usuario) {
+      return res.status(404).json({ error: 'Usuario no encontrado.' });
+    }
+
+    // Verificar que la contraseña actual sea correcta
+    const passwordValido = await bcrypt.compare(passwordActual, usuario.passwordHash);
+
+    if (!passwordValido) {
+      return res.status(400).json({
+        error: 'Contraseña actual incorrecta.'
+      });
+    }
+
+    // Hashear la nueva contraseña
+    const passwordHash = await bcrypt.hash(passwordNueva, 10);
+
+    // Actualizar contraseña
+    await prisma.usuario.update({
+      where: { id: userId },
+      data: { passwordHash }
+    });
+
+    res.json({
+      mensaje: 'Contraseña actualizada correctamente.'
+    });
+  } catch (error) {
+    console.error('Error al cambiar contraseña:', error);
+    res.status(500).json({ error: 'Error al cambiar contraseña.' });
   }
 });
 

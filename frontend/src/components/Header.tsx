@@ -26,7 +26,6 @@ export function Header() {
                 // Menú para responsables
                 <>
                   <Link to="/admin" className="nav-link">Panel</Link>
-                  <Link to="/admin/reservas" className="nav-link">Reservas</Link>
                   <Link to="/admin/clientes" className="nav-link">Clientes</Link>
                 </>
               ) : (
@@ -41,6 +40,9 @@ export function Header() {
                 <span className="user-greeting">
                   Hola, {usuario?.nombre}
                 </span>
+                <Link to="/mi-perfil" className="btn btn-secondary btn-sm">
+                  Mi Perfil
+                </Link>
                 <button onClick={handleLogout} className="btn btn-secondary btn-sm">
                   Cerrar sesión
                 </button>
