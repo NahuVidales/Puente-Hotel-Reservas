@@ -10,13 +10,22 @@
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:seed": "ts-node prisma/seed.ts",
+    "prisma:seed-historico": "ts-node prisma/seed-historico.ts",
+    "prisma:estadisticas": "ts-node prisma/estadisticas.ts",
+    "prisma:crear-admin": "ts-node prisma/crear-admin.ts",
     "prisma:studio": "prisma studio"
   },
-  "keywords": ["restaurante", "reservas", "express", "prisma"],
+  "keywords": [
+    "restaurante",
+    "reservas",
+    "express",
+    "prisma"
+  ],
   "author": "",
   "license": "ISC",
   "dependencies": {
     "@prisma/client": "^5.7.0",
+    "bcrypt": "^5.1.1",
     "bcryptjs": "^2.4.3",
     "cookie-parser": "^1.4.6",
     "cors": "^2.8.5",
@@ -25,6 +34,7 @@
     "jsonwebtoken": "^9.0.2"
   },
   "devDependencies": {
+    "@types/bcrypt": "^5.0.2",
     "@types/bcryptjs": "^2.4.6",
     "@types/cookie-parser": "^1.4.6",
     "@types/cors": "^2.8.17",

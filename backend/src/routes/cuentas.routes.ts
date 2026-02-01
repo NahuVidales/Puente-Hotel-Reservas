@@ -374,18 +374,6 @@ router.put('/:id/cerrar', verificarToken, async (req: Request, res: Response) =>
       });
     }
 
-    // Verificar que todos los items estén entregados
-    const itemsPendientes = cuenta.items.filter(item => 
-      item.estado !== 'ENTREGADO' && item.estado !== 'CANCELADO'
-    );
-
-    if (itemsPendientes.length > 0) {
-      return res.status(400).json({
-        success: false,
-        message: 'No se puede cerrar la cuenta con items pendientes'
-      });
-    }
-
     const propinaNum = parseFloat(propina.toString()) || 0;
     const totalFinal = cuenta.subtotal + propinaNum;
 
