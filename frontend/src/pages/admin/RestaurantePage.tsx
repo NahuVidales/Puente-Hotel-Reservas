@@ -3,9 +3,11 @@ import mesasService, { Mesa, OcupacionZona } from '../../services/mesas.service'
 import mozosService, { Mozo } from '../../services/mozos.service';
 import cuentasService, { Cuenta } from '../../services/cuentas.service';
 import productosService, { Producto, CategoriaProducto } from '../../services/productos.service';
+import { reservaService } from '../../services/reserva.service';
+import { Reserva } from '../../types';
 import './RestaurantePage.css';
 
-type TabType = 'dashboard' | 'mesas' | 'mozos' | 'productos' | 'cuentas';
+type TabType = 'dashboard' | 'reservas' | 'mesas' | 'mozos' | 'productos' | 'cuentas';
 
 interface TicketData {
   cuenta: Cuenta;
@@ -42,6 +44,11 @@ const RestaurantePage: React.FC = () => {
   const [cuentasCerradasDia, setCuentasCerradasDia] = useState<Cuenta[]>([]);
   const [ocupacionZonas, setOcupacionZonas] = useState<OcupacionZona[]>([]);
   const [historicoData, setHistoricoData] = useState<HistoricoData | null>(null);
+  const [reservasDelDia, setReservasDelDia] = useState<Reserva[]>([]);
+  const [turnoSeleccionado, setTurnoSeleccionado] = useState<'ALMUERZO' | 'CENA'>(() => {
+    const hora = new Date().getHours();
+    return hora < 17 ? 'ALMUERZO' : 'CENA';
+  });
   const [stats, setStats] = useState<DashboardStats>({
     mesasOcupadas: 0,
     mesasLibres: 0,
@@ -55,7 +62,7 @@ const RestaurantePage: React.FC = () => {
   
   // Modal states
   const [showModal, setShowModal] = useState(false);
-  const [modalType, setModalType] = useState<'mesa' | 'mozo' | 'producto' | 'cuenta' | null>(null);
+  const [modalType, setModalType] = useState<'mesa' | 'mozo' | 'producto' | 'cuenta' | 'asignar-reserva' | null>(null);
   const [editingItem, setEditingItem] = useState<any>(null);
   
   // Ticket state
@@ -65,7 +72,7 @@ const RestaurantePage: React.FC = () => {
     const today = new Date().toISOString().split('T')[0];
     setIsToday(selectedDate === today);
     cargarDatos();
-  }, [selectedDate]);
+  }, [selectedDate, turnoSeleccionado]);
 
   const cargarDatos = async () => {
     try {
@@ -86,6 +93,19 @@ const RestaurantePage: React.FC = () => {
       setProductos(productosData);
       setCategorias(categoriasData);
       setOcupacionZonas(ocupacionData);
+
+      // Cargar reservas del día seleccionado
+      try {
+        const reservas = await reservaService.getTodasReservas({ 
+          fecha: selectedDate, 
+          turno: turnoSeleccionado,
+          estado: 'RESERVADA'
+        });
+        setReservasDelDia(reservas);
+      } catch (e) {
+        console.log('No hay reservas para esta fecha/turno');
+        setReservasDelDia([]);
+      }
 
       // Cargar cuentas según fecha seleccionada
       let cuentasAbiertasData: Cuenta[] = [];
@@ -155,7 +175,7 @@ const RestaurantePage: React.FC = () => {
     return '#ef4444';
   };
 
-  const openModal = (type: 'mesa' | 'mozo' | 'producto' | 'cuenta', item?: any) => {
+  const openModal = (type: 'mesa' | 'mozo' | 'producto' | 'cuenta' | 'asignar-reserva', item?: any) => {
     setModalType(type);
     setEditingItem(item || null);
     setShowModal(true);
@@ -345,6 +365,127 @@ const RestaurantePage: React.FC = () => {
       )}
     </div>
   );
+  };
+
+  // ==================== RESERVAS TAB ====================
+  const renderReservas = () => {
+    // Obtener cuentas abiertas con reservaId para saber cuáles ya están asignadas
+    const reservasConCuenta = cuentasAbiertas
+      .filter(c => c.reservaId)
+      .map(c => c.reservaId);
+    
+    // Filtrar reservas pendientes (sin cuenta asignada)
+    const reservasPendientes = reservasDelDia.filter(r => 
+      !reservasConCuenta.includes(r.id) && r.estado === 'RESERVADA'
+    );
+
+    const formatHora = (turno: string) => {
+      return turno === 'ALMUERZO' ? '12:00 - 16:00' : '20:00 - 00:00';
+    };
+
+    return (
+      <div className="tab-content">
+        <div className="tab-header">
+          <h3>📅 Reservas del Día</h3>
+          <div className="turno-selector">
+            <button 
+              className={`turno-btn ${turnoSeleccionado === 'ALMUERZO' ? 'active' : ''}`}
+              onClick={() => setTurnoSeleccionado('ALMUERZO')}
+            >
+              ☀️ Almuerzo
+            </button>
+            <button 
+              className={`turno-btn ${turnoSeleccionado === 'CENA' ? 'active' : ''}`}
+              onClick={() => setTurnoSeleccionado('CENA')}
+            >
+              🌙 Cena
+            </button>
+          </div>
+        </div>
+
+        <div className="reservas-info-banner">
+          <span>📍 {selectedDate} - {turnoSeleccionado} ({formatHora(turnoSeleccionado)})</span>
+          <span className="reservas-count">
+            {reservasPendientes.length} reservas pendientes de asignar
+          </span>
+        </div>
+
+        {reservasPendientes.length > 0 ? (
+          <div className="reservas-grid">
+            {reservasPendientes.map(reserva => (
+              <div key={reserva.id} className="reserva-card">
+                <div className="reserva-header">
+                  <span className="reserva-id">#{reserva.id}</span>
+                  <span className={`reserva-zona zona-${reserva.zona.toLowerCase()}`}>
+                    {reserva.zona}
+                  </span>
+                </div>
+                <div className="reserva-body">
+                  <div className="reserva-cliente">
+                    <span className="cliente-icono">👤</span>
+                    <div className="cliente-info">
+                      <strong>{reserva.cliente?.nombre} {reserva.cliente?.apellido}</strong>
+                      <span className="cliente-telefono">📱 {reserva.cliente?.telefono}</span>
+                    </div>
+                  </div>
+                  <div className="reserva-detalles">
+                    <div className="detalle-item">
+                      <span className="detalle-icono">👥</span>
+                      <span>{reserva.cantidadPersonas} personas</span>
+                    </div>
+                    <div className="detalle-item">
+                      <span className="detalle-icono">📍</span>
+                      <span>Zona: {reserva.zona}</span>
+                    </div>
+                  </div>
+                  {reserva.observaciones && (
+                    <div className="reserva-observaciones">
+                      <span className="obs-icono">📝</span>
+                      <span>{reserva.observaciones}</span>
+                    </div>
+                  )}
+                </div>
+                <div className="reserva-footer">
+                  <button 
+                    className="btn-asignar"
+                    onClick={() => openModal('asignar-reserva', reserva)}
+                  >
+                    🪑 Asignar Mesa y Mozo
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="empty-state">
+            <span className="empty-icon">📅</span>
+            <p>No hay reservas pendientes para este turno</p>
+            <p className="empty-hint">Las reservas asignadas pasan a la pestaña de Cuentas</p>
+          </div>
+        )}
+
+        {/* Reservas ya asignadas (con cuenta abierta) */}
+        {cuentasAbiertas.filter(c => c.reservaId).length > 0 && (
+          <div className="section-card reservas-asignadas">
+            <h4>✅ Reservas Asignadas (Cuentas Abiertas)</h4>
+            <div className="asignadas-grid">
+              {cuentasAbiertas.filter(c => c.reservaId).map(cuenta => (
+                <div key={cuenta.id} className="asignada-item">
+                  <div className="asignada-mesa">Mesa {cuenta.mesa?.numero}</div>
+                  <div className="asignada-info">
+                    <span>{cuenta.numeroClientes} pers.</span>
+                    <span>Mozo: {cuenta.mozo?.nombre}</span>
+                  </div>
+                  <div className="asignada-tiempo">
+                    ⏱️ {Math.round((new Date().getTime() - new Date(cuenta.fechaApertura).getTime()) / (1000 * 60))} min
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    );
   };
 
   // ==================== MESAS TAB ====================
@@ -570,6 +711,7 @@ const RestaurantePage: React.FC = () => {
               {modalType === 'mozo' && (editingItem ? 'Editar Mozo' : 'Nuevo Mozo')}
               {modalType === 'producto' && (editingItem ? 'Editar Producto' : 'Nuevo Producto')}
               {modalType === 'cuenta' && (editingItem ? 'Detalle de Cuenta' : 'Nueva Cuenta')}
+              {modalType === 'asignar-reserva' && 'Asignar Mesa y Mozo'}
             </h3>
             <button className="modal-close" onClick={closeModal}>×</button>
           </div>
@@ -578,6 +720,7 @@ const RestaurantePage: React.FC = () => {
             {modalType === 'mozo' && <MozoForm mozo={editingItem} onSave={cargarDatos} onClose={closeModal} />}
             {modalType === 'producto' && <ProductoForm producto={editingItem} categorias={categorias} onSave={cargarDatos} onClose={closeModal} />}
             {modalType === 'cuenta' && <CuentaForm cuenta={editingItem} mesas={mesas} mozos={mozos} onSave={cargarDatos} onClose={closeModal} />}
+            {modalType === 'asignar-reserva' && <AsignarReservaForm reserva={editingItem} mesas={mesas} mozos={mozos} onSave={cargarDatos} onClose={closeModal} />}
           </div>
         </div>
       </div>
@@ -599,7 +742,6 @@ const RestaurantePage: React.FC = () => {
     <div className="restaurante-page">
       <div className="page-header">
         <div className="header-content">
-          <h1>🍽️ Restaurante Pilar</h1>
           <p>Panel de control en tiempo real</p>
         </div>
         <div className="header-actions">
@@ -624,6 +766,12 @@ const RestaurantePage: React.FC = () => {
           onClick={() => setActiveTab('dashboard')}
         >
           📊 Dashboard
+        </button>
+        <button 
+          className={`tab-btn ${activeTab === 'reservas' ? 'active' : ''} ${reservasDelDia.length > 0 ? 'has-pending' : ''}`}
+          onClick={() => setActiveTab('reservas')}
+        >
+          📅 Reservas {reservasDelDia.length > 0 && <span className="badge">{reservasDelDia.length}</span>}
         </button>
         <button 
           className={`tab-btn ${activeTab === 'mesas' ? 'active' : ''}`}
@@ -653,6 +801,7 @@ const RestaurantePage: React.FC = () => {
 
       <div className="tab-container">
         {activeTab === 'dashboard' && renderDashboard()}
+        {activeTab === 'reservas' && renderReservas()}
         {activeTab === 'mesas' && renderMesas()}
         {activeTab === 'mozos' && renderMozos()}
         {activeTab === 'productos' && renderProductos()}
@@ -1100,6 +1249,170 @@ const CuentaForm: React.FC<{ cuenta?: Cuenta; mesas: Mesa[]; mozos: Mozo[]; onSa
         <button type="submit" className="btn-primary">Abrir Cuenta</button>
       </div>
     </form>
+  );
+};
+
+// ==================== ASIGNAR RESERVA FORM ====================
+const AsignarReservaForm: React.FC<{ reserva: Reserva; mesas: Mesa[]; mozos: Mozo[]; onSave: () => void; onClose: () => void }> = ({ reserva, mesas, mozos, onSave, onClose }) => {
+  // Filtrar mesas de la misma zona con capacidad suficiente
+  const mesasDisponibles = mesas.filter(m => 
+    m.activa && 
+    m.estado === 'LIBRE' && 
+    m.capacidad >= reserva.cantidadPersonas &&
+    m.zona === reserva.zona
+  );
+  
+  // También mostrar mesas de otras zonas como alternativa
+  const mesasOtrasZonas = mesas.filter(m => 
+    m.activa && 
+    m.estado === 'LIBRE' && 
+    m.capacidad >= reserva.cantidadPersonas &&
+    m.zona !== reserva.zona
+  );
+
+  const [form, setForm] = useState({
+    mesaId: mesasDisponibles[0]?.id || mesasOtrasZonas[0]?.id || 0,
+    mozoId: mozos.find(m => m.activo)?.id || 0
+  });
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setError(null);
+    
+    try {
+      await cuentasService.createCuentaDesdeReserva({
+        reservaId: reserva.id,
+        mesaId: form.mesaId,
+        mozoId: form.mozoId
+      });
+      onSave();
+      onClose();
+    } catch (err: any) {
+      console.error('Error al asignar reserva:', err);
+      setError(err.response?.data?.message || 'Error al asignar la reserva');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="asignar-reserva-form">
+      {/* Info de la reserva */}
+      <div className="reserva-info-box">
+        <h4>📋 Información de la Reserva</h4>
+        <div className="info-grid">
+          <div className="info-item">
+            <span className="label">Cliente:</span>
+            <span className="value">{reserva.cliente?.nombre} {reserva.cliente?.apellido}</span>
+          </div>
+          <div className="info-item">
+            <span className="label">Teléfono:</span>
+            <span className="value">{reserva.cliente?.telefono}</span>
+          </div>
+          <div className="info-item">
+            <span className="label">Personas:</span>
+            <span className="value">{reserva.cantidadPersonas}</span>
+          </div>
+          <div className="info-item">
+            <span className="label">Zona solicitada:</span>
+            <span className="value zona-badge">{reserva.zona}</span>
+          </div>
+          {reserva.observaciones && (
+            <div className="info-item full-width">
+              <span className="label">Observaciones:</span>
+              <span className="value obs">{reserva.observaciones}</span>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {error && (
+        <div className="error-message">
+          ⚠️ {error}
+        </div>
+      )}
+
+      <form onSubmit={handleSubmit} className="form">
+        <div className="form-group">
+          <label>🪑 Mesa</label>
+          {mesasDisponibles.length > 0 ? (
+            <>
+              <select 
+                value={form.mesaId} 
+                onChange={e => setForm({ ...form, mesaId: parseInt(e.target.value) })}
+              >
+                <optgroup label={`Zona ${reserva.zona} (Solicitada)`}>
+                  {mesasDisponibles.map(mesa => (
+                    <option key={mesa.id} value={mesa.id}>
+                      Mesa {mesa.numero} - {mesa.capacidad} personas
+                    </option>
+                  ))}
+                </optgroup>
+                {mesasOtrasZonas.length > 0 && (
+                  <optgroup label="Otras zonas">
+                    {mesasOtrasZonas.map(mesa => (
+                      <option key={mesa.id} value={mesa.id}>
+                        Mesa {mesa.numero} - {mesa.zona} ({mesa.capacidad} pers.)
+                      </option>
+                    ))}
+                  </optgroup>
+                )}
+              </select>
+            </>
+          ) : mesasOtrasZonas.length > 0 ? (
+            <>
+              <div className="warning-message">
+                ⚠️ No hay mesas disponibles en {reserva.zona}. Mostrando otras zonas:
+              </div>
+              <select 
+                value={form.mesaId} 
+                onChange={e => setForm({ ...form, mesaId: parseInt(e.target.value) })}
+              >
+                {mesasOtrasZonas.map(mesa => (
+                  <option key={mesa.id} value={mesa.id}>
+                    Mesa {mesa.numero} - {mesa.zona} ({mesa.capacidad} pers.)
+                  </option>
+                ))}
+              </select>
+            </>
+          ) : (
+            <div className="error-message">
+              ❌ No hay mesas disponibles con capacidad para {reserva.cantidadPersonas} personas
+            </div>
+          )}
+        </div>
+
+        <div className="form-group">
+          <label>👨‍🍳 Mozo asignado</label>
+          <select 
+            value={form.mozoId} 
+            onChange={e => setForm({ ...form, mozoId: parseInt(e.target.value) })}
+          >
+            {mozos.filter(m => m.activo).map(mozo => (
+              <option key={mozo.id} value={mozo.id}>
+                {mozo.nombre} {mozo.apellido}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div className="form-actions">
+          <button type="button" className="btn-secondary" onClick={onClose} disabled={loading}>
+            Cancelar
+          </button>
+          <button 
+            type="submit" 
+            className="btn-primary btn-asignar-submit"
+            disabled={loading || form.mesaId === 0}
+          >
+            {loading ? '⏳ Asignando...' : '✅ Asignar y Abrir Cuenta'}
+          </button>
+        </div>
+      </form>
+    </div>
   );
 };
 

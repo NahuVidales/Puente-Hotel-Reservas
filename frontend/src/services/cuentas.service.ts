@@ -22,6 +22,7 @@ export interface Cuenta {
   id: number;
   mesaId: number;
   mozoId: number;
+  reservaId?: number;
   numeroClientes: number;
   fechaApertura: string;
   fechaCierre?: string;
@@ -49,6 +50,12 @@ export interface CreateCuentaData {
   mozoId: number;
   numeroClientes: number;
   observaciones?: string;
+}
+
+export interface CreateCuentaDesdeReservaData {
+  reservaId: number;
+  mesaId: number;
+  mozoId: number;
 }
 
 export interface CreateItemPedidoData {
@@ -94,6 +101,12 @@ const cuentasService = {
   // Crear nueva cuenta
   createCuenta: async (data: CreateCuentaData): Promise<Cuenta> => {
     const response = await api.post('/cuentas', data);
+    return response.data.data;
+  },
+
+  // Crear cuenta desde una reserva (asignar mesa y mozo)
+  createCuentaDesdeReserva: async (data: CreateCuentaDesdeReservaData): Promise<Cuenta> => {
+    const response = await api.post('/cuentas/desde-reserva', data);
     return response.data.data;
   },
 

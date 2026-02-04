@@ -16,7 +16,7 @@ export function Header() {
       <div className="container header-content">
         <Link to="/" className="header-logo">
           <span className="logo-icon">🍽️</span>
-          <span className="logo-text">Viejo Puente</span>
+          <span className="logo-text">Pilar</span>
         </Link>
 
         <nav className="header-nav">
@@ -25,7 +25,7 @@ export function Header() {
               {isResponsable ? (
                 // Menú para responsables
                 <>
-                  <Link to="/admin" className="nav-link">Panel</Link>
+                  <Link to="/admin" className="nav-link">Reservas</Link>
                   <Link to="/admin/restaurante" className="nav-link">Restaurante</Link>
                   <Link to="/admin/clientes" className="nav-link">Clientes</Link>
                 </>

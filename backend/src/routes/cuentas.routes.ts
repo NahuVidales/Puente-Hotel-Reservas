@@ -427,4 +427,147 @@ router.put('/:id/cerrar', verificarToken, async (req: Request, res: Response) =>
   }
 });
 
+// POST /api/cuentas/desde-reserva - Crear cuenta desde una reserva (asignar mesa y mozo)
+router.post('/desde-reserva', verificarToken, async (req: Request, res: Response) => {
+  try {
+    const { reservaId, mesaId, mozoId } = req.body;
+
+    // Validaciones
+    if (!reservaId || !mesaId || !mozoId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Reserva, mesa y mozo son requeridos'
+      });
+    }
+
+    // Verificar que la reserva existe y está en estado RESERVADA
+    const reserva = await prisma.reserva.findUnique({
+      where: { id: reservaId },
+      include: { cliente: true, cuenta: true }
+    });
+
+    if (!reserva) {
+      return res.status(404).json({
+        success: false,
+        message: 'Reserva no encontrada'
+      });
+    }
+
+    if (reserva.estado !== 'RESERVADA') {
+      return res.status(400).json({
+        success: false,
+        message: 'La reserva no está activa'
+      });
+    }
+
+    if (reserva.cuenta) {
+      return res.status(400).json({
+        success: false,
+        message: 'La reserva ya tiene una cuenta asignada'
+      });
+    }
+
+    // Verificar que la mesa esté libre
+    const cuentaActiva = await prisma.cuenta.findFirst({
+      where: {
+        mesaId,
+        estado: 'ABIERTA'
+      }
+    });
+
+    if (cuentaActiva) {
+      return res.status(400).json({
+        success: false,
+        message: 'La mesa ya tiene una cuenta abierta'
+      });
+    }
+
+    // Verificar que existan mesa y mozo
+    const [mesa, mozo] = await Promise.all([
+      prisma.mesa.findUnique({ where: { id: mesaId, activa: true } }),
+      prisma.mozo.findUnique({ where: { id: mozoId, activo: true } })
+    ]);
+
+    if (!mesa) {
+      return res.status(400).json({
+        success: false,
+        message: 'Mesa no válida o no activa'
+      });
+    }
+
+    if (!mozo) {
+      return res.status(400).json({
+        success: false,
+        message: 'Mozo no válido o no activo'
+      });
+    }
+
+    // Verificar que la mesa tiene capacidad suficiente
+    if (mesa.capacidad < reserva.cantidadPersonas) {
+      return res.status(400).json({
+        success: false,
+        message: `La mesa tiene capacidad para ${mesa.capacidad} personas, pero la reserva es para ${reserva.cantidadPersonas}`
+      });
+    }
+
+    // Crear la cuenta vinculada a la reserva
+    const nuevaCuenta = await prisma.cuenta.create({
+      data: {
+        mesaId,
+        mozoId,
+        reservaId,
+        numeroClientes: reserva.cantidadPersonas,
+        observaciones: reserva.observaciones || `Reserva de ${reserva.cliente.nombre} ${reserva.cliente.apellido}`
+      },
+      include: {
+        mesa: true,
+        mozo: {
+          select: {
+            id: true,
+            nombre: true,
+            apellido: true
+          }
+        },
+        reserva: {
+          include: {
+            cliente: {
+              select: {
+                id: true,
+                nombre: true,
+                apellido: true,
+                telefono: true,
+                email: true
+              }
+            }
+          }
+        }
+      }
+    });
+
+    // Actualizar estado de la reserva a ASIGNADA (opcional, podemos mantener RESERVADA)
+    // Por ahora lo dejamos en RESERVADA para no romper el flujo existente
+
+    // Registrar en historial de mesas
+    await prisma.historialMesa.create({
+      data: {
+        mesaId,
+        mozoId,
+        observaciones: `Reserva #${reservaId} - ${reserva.cliente.nombre} ${reserva.cliente.apellido}`
+      }
+    });
+
+    res.status(201).json({
+      success: true,
+      data: nuevaCuenta,
+      message: 'Cuenta creada exitosamente desde la reserva'
+    });
+  } catch (error) {
+    console.error('Error al crear cuenta desde reserva:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error interno del servidor'
+    });
+  }
+});
+
 export default router;

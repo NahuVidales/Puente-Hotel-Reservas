@@ -11,6 +11,7 @@
     "prisma:migrate": "prisma migrate dev",
     "prisma:seed": "ts-node prisma/seed.ts",
     "prisma:seed-historico": "ts-node prisma/seed-historico.ts",
+    "prisma:seed-clientes-futuros": "ts-node prisma/seed-clientes-futuros.ts",
     "prisma:estadisticas": "ts-node prisma/estadisticas.ts",
     "prisma:crear-admin": "ts-node prisma/crear-admin.ts",
     "prisma:studio": "prisma studio"

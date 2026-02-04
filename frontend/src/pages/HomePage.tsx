@@ -11,7 +11,7 @@ export function HomePage() {
       <section className="hero">
         <div className="hero-overlay"></div>
         <div className="hero-content">
-          <h1 className="hero-title">Viejo Puente</h1>
+          <h1 className="hero-title">Pilar</h1>
           <p className="hero-subtitle">
             Donde cada comida se convierte en un momento especial
           </p>
